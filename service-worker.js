@@ -5,6 +5,8 @@ const ASSETS = [
   './x3.html',
   './Vis2HD.html',
   './Vis3.html',
+  './Vis4.html',
+  './Vis4.360.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
