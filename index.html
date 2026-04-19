@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>CYBER VISUALIZERS // HUB</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#00f2ff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CyberVis">
+    
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-512.png">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --neon-blue: #00f2ff;
+            --neon-red: #ff3333;
+            --bg-dark: #050505;
+            --glass: rgba(0, 242, 255, 0.05);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--neon-blue);
+            font-family: 'Share Tech Mono', monospace;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            text-transform: uppercase;
+        }
+
+        /* Effetto Scanline CRT */
+        body::before {
+            content: " ";
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            width: 90%;
+            max-width: 900px;
+            text-align: center;
+        }
+
+        header {
+            margin-bottom: 40px;
+            border-bottom: 1px solid var(--neon-blue);
+            padding-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            letter-spacing: 5px;
+            margin: 0;
+            text-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        .status-bar {
+            font-size: 0.7rem;
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            opacity: 0.7;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .nav-card {
+            background: var(--glass);
+            border: 1px solid var(--neon-blue);
+            padding: 20px;
+            text-decoration: none;
+            color: var(--neon-blue);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .nav-card:hover {
+            background: rgba(0, 242, 255, 0.15);
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+            transform: scale(1.02);
+        }
+
+        .card-title { font-weight: bold; font-size: 1.1rem; }
+        .card-desc { font-size: 0.6rem; opacity: 0.8; text-transform: none; }
+
+        .cosmic { border-color: var(--neon-red); color: var(--neon-red); }
+        .cosmic:hover { background: rgba(255, 51, 51, 0.15); box-shadow: 0 0 20px rgba(255, 51, 51, 0.3); }
+
+        footer { margin-top: 40px; font-size: 0.6rem; opacity: 0.4; letter-spacing: 2px; }
+
+        @keyframes glitch {
+            0% { text-shadow: 2px 0 0 red, -2px 0 0 blue; }
+            5% { text-shadow: -2px 0 0 red, 2px 0 0 blue; }
+            10% { text-shadow: 0 0 0 red, 0 0 0 blue; }
+        }
+        .glitch { animation: glitch 4s infinite; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1 class="glitch">CYBER VISUALIZERS</h1>
+            <div class="status-bar">
+                <span>SYSTEM: ONLINE</span>
+                <span id="clock">00:00:00</span>
+                <span>LINK: SECURE</span>
+            </div>
+        </header>
+
+        <div class="grid">
+            <a href="Vis7.html" class="nav-card cosmic">
+                <span class="card-title">COSMIC ODYSSEY</span>
+                <span class="card-desc">Particle system 3D con nebulose gassose.</span>
+            </a>
+            <a href="x3.html" class="nav-card">
+                <span class="card-title">BIO-NEURAL</span>
+                <span class="card-desc">Frattali organici e mutazione genetica.</span>
+            </a>
+            <a href="Vis2HD.html" class="nav-card">
+                <span class="card-title">ATTRACTOR HD</span>
+                <span class="card-desc">Simulazione ad alta densità WebGL.</span>
+            </a>
+            <a href="Vis3.html" class="nav-card">
+                <span class="card-title">ASCII_CORE</span>
+                <span class="card-desc">Fusione tra codice ASCII e oscilloscopio.</span>
+            </a>
+        </div>
+
+        <footer>ACCESS_POINT_CONNECTED // v4.0.1</footer>
+    </div>
+
+    <script>
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('it-IT');
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js');
+            });
+        }
+    </script>
+</body>
+                  </html>
+                  
