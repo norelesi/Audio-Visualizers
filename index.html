@@ -20,19 +20,17 @@
         :root {
             --bg-dark: #050505;
             --scanlines: rgba(0, 0, 0, 0.25);
-            
-            /* Definizione Colori Neon */
-            --neon-blue: #00f2ff;   /* Ciano base */
-            --neon-red: #ff3333;    /* Rosso */
-            --neon-green: #33ff33;  /* Verde */
-            --neon-purple: #9933ff; /* Viola */
-            --neon-pink: #ff33ff;   /* Magenta */
-            --neon-yellow: #ffcc00; /* Oro/Giallo */
+            --neon-blue: #00f2ff;
+            --neon-red: #ff3333;
+            --neon-green: #33ff33;
+            --neon-purple: #9933ff;
+            --neon-pink: #ff33ff;
+            --neon-yellow: #ffcc00;
         }
 
         body {
             background-color: var(--bg-dark);
-            color: var(--neon-blue); /* Colore testo base */
+            color: var(--neon-blue);
             font-family: 'Share Tech Mono', monospace;
             margin: 0;
             display: flex;
@@ -44,7 +42,6 @@
             text-transform: uppercase;
         }
 
-        /* Effetto Scanline CRT */
         body::before {
             content: " ";
             position: fixed;
@@ -93,7 +90,6 @@
             gap: 20px;
         }
 
-        /* Stile Base Card (Trasparente/Ciano) */
         .nav-card {
             background: rgba(0, 242, 255, 0.03);
             border: 1px solid var(--neon-blue);
@@ -109,47 +105,34 @@
             overflow: hidden;
         }
 
-        .nav-card:hover {
-            transform: translateY(-5px) scale(1.01);
-        }
-
+        .nav-card:hover { transform: translateY(-5px) scale(1.01); }
         .card-title { font-weight: bold; font-size: 1.2rem; letter-spacing: 1px; }
         .card-desc { font-size: 0.75rem; opacity: 0.85; text-transform: none; line-height: 1.3; }
 
-        /* --- CLASSI COLORI SPECIFICHE --- */
-
-        /* 1. ROSSO (Cosmic) */
+        /* COLORI */
         .card-red { border-color: var(--neon-red); color: var(--neon-red); background: rgba(255, 51, 51, 0.03); }
         .card-red:hover { background: rgba(255, 51, 51, 0.12); box-shadow: 0 0 25px rgba(255, 51, 51, 0.4); }
-        .card-red .card-title { text-shadow: 0 0 10px var(--neon-red); }
 
-        /* 2. GIALLO/ORO (Tactical) */
         .card-yellow { border-color: var(--neon-yellow); color: var(--neon-yellow); background: rgba(255, 204, 0, 0.03); }
         .card-yellow:hover { background: rgba(255, 204, 0, 0.12); box-shadow: 0 0 25px rgba(255, 204, 0, 0.4); }
-        .card-yellow .card-title { text-shadow: 0 0 10px var(--neon-yellow); }
 
-        /* 3. VERDE (Omni-360) */
         .card-green { border-color: var(--neon-green); color: var(--neon-green); background: rgba(51, 255, 51, 0.03); }
         .card-green:hover { background: rgba(51, 255, 51, 0.12); box-shadow: 0 0 25px rgba(51, 255, 51, 0.4); }
-        .card-green .card-title { text-shadow: 0 0 10px var(--neon-green); }
 
-        /* 4. ROSA/MAGENTA (Bio) */
         .card-pink { border-color: var(--neon-pink); color: var(--neon-pink); background: rgba(255, 51, 255, 0.03); }
         .card-pink:hover { background: rgba(255, 51, 255, 0.12); box-shadow: 0 0 25px rgba(255, 51, 255, 0.4); }
-        .card-pink .card-title { text-shadow: 0 0 10px var(--neon-pink); }
 
-        /* 5. VIOLA (Attractor) */
         .card-purple { border-color: var(--neon-purple); color: var(--neon-purple); background: rgba(153, 51, 255, 0.03); }
         .card-purple:hover { background: rgba(153, 51, 255, 0.12); box-shadow: 0 0 25px rgba(153, 51, 255, 0.4); }
-        .card-purple .card-title { text-shadow: 0 0 10px var(--neon-purple); }
 
-        /* 6. BLU/CIANO (ASCII - Base) */
         .card-cyan:hover { background: rgba(0, 242, 255, 0.12); box-shadow: 0 0 25px rgba(0, 242, 255, 0.4); }
-        .card-cyan .card-title { text-shadow: 0 0 10px var(--neon-blue); }
 
+        /* Nuova Classe Vis5 */
+        .card-orange { border-color: #ff9900; color: #ff9900; background: rgba(255, 153, 0, 0.03); }
+        .card-orange:hover { background: rgba(255, 153, 0, 0.12); box-shadow: 0 0 25px rgba(255, 153, 0, 0.4); }
+        .card-orange .card-title { text-shadow: 0 0 10px #ff9900; }
 
         footer { margin-top: 50px; font-size: 0.65rem; opacity: 0.5; letter-spacing: 2px; line-height: 1.5; }
-
         @keyframes glitch {
             0% { text-shadow: 2px 0 0 red, -2px 0 0 blue; }
             5% { text-shadow: -2px 0 0 red, 2px 0 0 blue; }
@@ -171,6 +154,11 @@
         </header>
 
         <div class="grid">
+            <a href="Vis5.html" class="nav-card card-orange">
+                <span class="card-title">CYBER KALEIDO</span>
+                <span class="card-desc">Simmetrie speculari dinamiche con campionamento di texture e audio-reactive zoom.</span>
+            </a>
+
             <a href="Vis7.html" class="nav-card card-red">
                 <span class="card-title">COSMIC ODYSSEY</span>
                 <span class="card-desc">Particle system 3D con nebulose gassose e profondità spaziale.</span>
@@ -208,11 +196,9 @@
                 MADE BY NORELESI
             </span>
         </footer>
-        
     </div>
 
     <script>
-        // Orologio di sistema
         function updateClock() {
             const now = new Date();
             document.getElementById('clock').innerText = now.toLocaleTimeString('it-IT');
@@ -220,23 +206,9 @@
         setInterval(updateClock, 1000);
         updateClock();
 
-        // Registrazione Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js').then(registration => {
-                    // Controlla se c'è un aggiornamento
-                    registration.onupdatefound = () => {
-                        const installingWorker = registration.installing;
-                        installingWorker.onstatechange = () => {
-                            if (installingWorker.state === 'installed') {
-                                if (navigator.serviceWorker.controller) {
-                                    console.log('Nuovo contenuto disponibile, ricaricare la pagina.');
-                                    // window.location.reload(); 
-                                }
-                            }
-                        };
-                    };
-                });
+                navigator.serviceWorker.register('./service-worker.js').catch(err => console.log(err));
             });
         }
     </script>
