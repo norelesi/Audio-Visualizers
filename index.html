@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>CYBER VISUALIZERS // HUB</title>
+    <title>CYBER VISUALIZERS // HUB-RAINBOW</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#00f2ff">
@@ -18,15 +18,21 @@
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
         :root {
-            --neon-blue: #00f2ff;
-            --neon-red: #ff3333;
             --bg-dark: #050505;
-            --glass: rgba(0, 242, 255, 0.05);
+            --scanlines: rgba(0, 0, 0, 0.25);
+            
+            /* Definizione Colori Neon */
+            --neon-blue: #00f2ff;   /* Ciano base */
+            --neon-red: #ff3333;    /* Rosso */
+            --neon-green: #33ff33;  /* Verde */
+            --neon-purple: #9933ff; /* Viola */
+            --neon-pink: #ff33ff;   /* Magenta */
+            --neon-yellow: #ffcc00; /* Oro/Giallo */
         }
 
         body {
             background-color: var(--bg-dark);
-            color: var(--neon-blue);
+            color: var(--neon-blue); /* Colore testo base */
             font-family: 'Share Tech Mono', monospace;
             margin: 0;
             display: flex;
@@ -34,7 +40,7 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            overflow: hidden;
+            overflow-x: hidden;
             text-transform: uppercase;
         }
 
@@ -43,7 +49,7 @@
             content: " ";
             position: fixed;
             top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, var(--scanlines) 50%), 
                         linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
             z-index: 100;
             background-size: 100% 2px, 3px 100%;
@@ -54,62 +60,95 @@
             position: relative;
             z-index: 10;
             width: 90%;
-            max-width: 900px;
+            max-width: 1000px;
             text-align: center;
+            padding: 40px 0;
         }
 
         header {
-            margin-bottom: 40px;
+            margin-bottom: 50px;
             border-bottom: 1px solid var(--neon-blue);
-            padding-bottom: 20px;
+            padding-bottom: 25px;
         }
 
         h1 {
-            font-size: 2rem;
-            letter-spacing: 5px;
+            font-size: 2.5rem;
+            letter-spacing: 8px;
             margin: 0;
             text-shadow: 0 0 15px var(--neon-blue);
         }
 
         .status-bar {
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             display: flex;
             justify-content: space-between;
-            margin-top: 10px;
-            opacity: 0.7;
+            margin-top: 15px;
+            opacity: 0.8;
+            letter-spacing: 1px;
         }
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
         }
 
+        /* Stile Base Card (Trasparente/Ciano) */
         .nav-card {
-            background: var(--glass);
+            background: rgba(0, 242, 255, 0.03);
             border: 1px solid var(--neon-blue);
-            padding: 20px;
+            padding: 25px;
             text-decoration: none;
             color: var(--neon-blue);
-            transition: all 0.3s ease;
+            transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
+            text-align: left;
+            position: relative;
+            overflow: hidden;
         }
 
         .nav-card:hover {
-            background: rgba(0, 242, 255, 0.15);
-            box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
-            transform: scale(1.02);
+            transform: translateY(-5px) scale(1.01);
         }
 
-        .card-title { font-weight: bold; font-size: 1.1rem; }
-        .card-desc { font-size: 0.6rem; opacity: 0.8; text-transform: none; }
+        .card-title { font-weight: bold; font-size: 1.2rem; letter-spacing: 1px; }
+        .card-desc { font-size: 0.75rem; opacity: 0.85; text-transform: none; line-height: 1.3; }
 
-        .cosmic { border-color: var(--neon-red); color: var(--neon-red); }
-        .cosmic:hover { background: rgba(255, 51, 51, 0.15); box-shadow: 0 0 20px rgba(255, 51, 51, 0.3); }
+        /* --- CLASSI COLORI SPECIFICHE --- */
 
-        footer { margin-top: 40px; font-size: 0.6rem; opacity: 0.4; letter-spacing: 2px; }
+        /* 1. ROSSO (Cosmic) */
+        .card-red { border-color: var(--neon-red); color: var(--neon-red); background: rgba(255, 51, 51, 0.03); }
+        .card-red:hover { background: rgba(255, 51, 51, 0.12); box-shadow: 0 0 25px rgba(255, 51, 51, 0.4); }
+        .card-red .card-title { text-shadow: 0 0 10px var(--neon-red); }
+
+        /* 2. GIALLO/ORO (Tactical) */
+        .card-yellow { border-color: var(--neon-yellow); color: var(--neon-yellow); background: rgba(255, 204, 0, 0.03); }
+        .card-yellow:hover { background: rgba(255, 204, 0, 0.12); box-shadow: 0 0 25px rgba(255, 204, 0, 0.4); }
+        .card-yellow .card-title { text-shadow: 0 0 10px var(--neon-yellow); }
+
+        /* 3. VERDE (Omni-360) */
+        .card-green { border-color: var(--neon-green); color: var(--neon-green); background: rgba(51, 255, 51, 0.03); }
+        .card-green:hover { background: rgba(51, 255, 51, 0.12); box-shadow: 0 0 25px rgba(51, 255, 51, 0.4); }
+        .card-green .card-title { text-shadow: 0 0 10px var(--neon-green); }
+
+        /* 4. ROSA/MAGENTA (Bio) */
+        .card-pink { border-color: var(--neon-pink); color: var(--neon-pink); background: rgba(255, 51, 255, 0.03); }
+        .card-pink:hover { background: rgba(255, 51, 255, 0.12); box-shadow: 0 0 25px rgba(255, 51, 255, 0.4); }
+        .card-pink .card-title { text-shadow: 0 0 10px var(--neon-pink); }
+
+        /* 5. VIOLA (Attractor) */
+        .card-purple { border-color: var(--neon-purple); color: var(--neon-purple); background: rgba(153, 51, 255, 0.03); }
+        .card-purple:hover { background: rgba(153, 51, 255, 0.12); box-shadow: 0 0 25px rgba(153, 51, 255, 0.4); }
+        .card-purple .card-title { text-shadow: 0 0 10px var(--neon-purple); }
+
+        /* 6. BLU/CIANO (ASCII - Base) */
+        .card-cyan:hover { background: rgba(0, 242, 255, 0.12); box-shadow: 0 0 25px rgba(0, 242, 255, 0.4); }
+        .card-cyan .card-title { text-shadow: 0 0 10px var(--neon-blue); }
+
+
+        footer { margin-top: 50px; font-size: 0.65rem; opacity: 0.5; letter-spacing: 2px; line-height: 1.5; }
 
         @keyframes glitch {
             0% { text-shadow: 2px 0 0 red, -2px 0 0 blue; }
@@ -131,44 +170,49 @@
             </div>
         </header>
 
-            <div class="grid">
-            <a href="Vis7.html" class="nav-card cosmic">
+        <div class="grid">
+            <a href="Vis7.html" class="nav-card card-red">
                 <span class="card-title">COSMIC ODYSSEY</span>
-                <span class="card-desc">Particle system 3D con nebulose gassose.</span>
+                <span class="card-desc">Particle system 3D con nebulose gassose e profondità spaziale.</span>
             </a>
-            <a href="Vis4.html" class="nav-card">
+
+            <a href="Vis4.html" class="nav-card card-yellow">
                 <span class="card-title">TACTICAL DECODER</span>
-                <span class="card-desc">Tunnel iperspaziale con decodifica del segnale audio.</span>
+                <span class="card-desc">Tunnel iperspaziale con decodifica in tempo reale del segnale audio.</span>
             </a>
-            <a href="Vis4.360.html" class="nav-card">
+
+            <a href="Vis4.360.html" class="nav-card card-green">
                 <span class="card-title">OMNI-DECODER 360°</span>
-                <span class="card-desc">Navigazione omnidirezionale nel flusso dati del vuoto.</span>
+                <span class="card-desc">Versione potenziata con navigazione omnidirezionale nel flusso dati.</span>
             </a>
-            <a href="x3.html" class="nav-card">
+
+            <a href="x3.html" class="nav-card card-pink">
                 <span class="card-title">BIO-NEURAL</span>
-                <span class="card-desc">Frattali organici e mutazione genetica.</span>
+                <span class="card-desc">Frattali organici in mutazione genetica costante.</span>
             </a>
-            <a href="Vis2HD.html" class="nav-card">
+
+            <a href="Vis2HD.html" class="nav-card card-purple">
                 <span class="card-title">ATTRACTOR HD</span>
-                <span class="card-desc">Simulazione ad alta densità WebGL.</span>
+                <span class="card-desc">Simulazione di attrattori matematici ad alta densità WebGL.</span>
             </a>
-            <a href="Vis3.html" class="nav-card">
+
+            <a href="Vis3.html" class="nav-card card-cyan">
                 <span class="card-title">ASCII_CORE</span>
-                <span class="card-desc">Fusione tra codice ASCII e oscilloscopio.</span>
+                <span class="card-desc">Fusione tra estetica retro-terminale e oscilloscopio moderno.</span>
             </a>
         </div>
 
-
         <footer>
-    ACCESS_POINT_CONNECTED // v4.0.1 <br>
-    <span class="glitch" style="display: inline-block; margin-top: 10px; color: var(--neon-blue); text-shadow: 0 0 10px var(--neon-blue);">
-        MADE BY NORELESI
-    </span>
+            ACCESS_POINT_CONNECTED // v4.2.0-RAINBOW <br>
+            <span class="glitch" style="display: inline-block; margin-top: 10px; color: var(--neon-blue); text-shadow: 0 0 10px var(--neon-blue);">
+                MADE BY NORELESI
+            </span>
         </footer>
         
     </div>
 
     <script>
+        // Orologio di sistema
         function updateClock() {
             const now = new Date();
             document.getElementById('clock').innerText = now.toLocaleTimeString('it-IT');
@@ -176,12 +220,25 @@
         setInterval(updateClock, 1000);
         updateClock();
 
+        // Registrazione Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js');
+                navigator.serviceWorker.register('./service-worker.js').then(registration => {
+                    // Controlla se c'è un aggiornamento
+                    registration.onupdatefound = () => {
+                        const installingWorker = registration.installing;
+                        installingWorker.onstatechange = () => {
+                            if (installingWorker.state === 'installed') {
+                                if (navigator.serviceWorker.controller) {
+                                    console.log('Nuovo contenuto disponibile, ricaricare la pagina.');
+                                    // window.location.reload(); 
+                                }
+                            }
+                        };
+                    };
+                });
             });
         }
     </script>
 </body>
-                  </html>
-                  
+</html>
