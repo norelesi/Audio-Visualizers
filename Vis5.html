@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CyberKaleido</title>
+    <style>
+        :root { --neon: #0ff; --bg: #010101; --magenta: #f0f; }
+        body { margin: 0; background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; overflow: hidden; touch-action: none; }
+        
+        #ui-layer {
+            position: fixed; bottom: 0; left: 0; width: 100%; 
+            background: rgba(0, 0, 0, 0.95); border-top: 2px solid #005555;
+            z-index: 100; transition: transform 0.3s ease;
+            padding: 12px 0; display: flex; flex-direction: column; align-items: center;
+            box-sizing: border-box; gap: 12px;
+        }
+        #ui-layer.hidden { transform: translateY(100%); }
+
+        /* 1. Scrubbing Bar (In alto nel menu) */
+        .scrub-row { width: 92%; display: flex; align-items: center; gap: 10px; }
+        .scrub-row label { font-size: 8px; opacity: 0.7; letter-spacing: 1px; }
+        #scrub-bar { flex-grow: 1; height: 6px; background: #002222; position: relative; border-radius: 3px; cursor: pointer; }
+        #scrub-progress { position: absolute; height: 100%; background: var(--neon); width: 0%; border-radius: 3px; pointer-events: none; }
+
+        /* 2. Controlli Centrali (Fullscreen, Uploads, Play) */
+        .mid-row { display: flex; justify-content: space-evenly; align-items: center; width: 95%; gap: 10px; }
+        .btn { background: transparent; border: 1px solid var(--neon); color: var(--neon); padding: 8px 12px; cursor: pointer; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+        .btn-fs { border-color: var(--magenta); color: var(--magenta); }
+        
+        .upload-group { display: flex; gap: 10px; align-items: center; }
+        .upload-btn { font-size: 10px; border: 1px solid var(--neon); padding: 6px 10px; cursor: pointer; text-transform: uppercase; display: inline-block; }
+        .upload-group input { display: none; }
+
+        #playBtn { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        #playBtn:active { background: rgba(0, 255, 255, 0.2); }
+        .play-icon { width: 0; height: 0; border-style: solid; border-width: 8px 0 8px 14px; border-color: transparent transparent transparent var(--neon); margin-left: 4px; }
+        .stop-icon { width: 14px; height: 14px; background: var(--neon); }
+
+        /* 3. Slider affiancati (In basso nel menu) */
+        .bottom-row { width: 92%; display: flex; justify-content: space-between; gap: 20px; }
+        .slider-item { flex: 1; display: flex; align-items: center; gap: 10px; }
+        .slider-item label { font-size: 9px; white-space: nowrap; opacity: 0.8; }
+        input[type="range"] { flex-grow: 1; accent-color: var(--neon); height: 4px; cursor: pointer; }
+
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="scrub-row">
+            <label>POS</label>
+            <div id="scrub-bar"><div id="scrub-progress"></div></div>
+        </div>
+
+        <div class="mid-row">
+            <button id="fsBtn" class="btn btn-fs">FULL SCREEN</button>
+            
+            <div class="upload-group">
+                <label for="upload" class="upload-btn">Image</label>
+                <input type="file" id="upload" accept="image/*">
+                
+                <label for="audioUpload" class="upload-btn">Audio</label>
+                <input type="file" id="audioUpload" accept="audio/*">
+            </div>
+
+            <button id="playBtn" class="btn"><div id="playIcon" class="play-icon"></div></button>
+        </div>
+
+        <div class="bottom-row">
+            <div class="slider-item">
+                <label>COMPL.</label>
+                <input type="range" id="slices" min="4" max="100" value="12">
+            </div>
+            <div class="slider-item">
+                <label>ZOOM</label>
+                <input type="range" id="zoomSlider" min="0.1" max="5" step="0.1" value="1.8">
+            </div>
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const ui = document.getElementById('ui-layer');
+        const playIcon = document.getElementById('playIcon');
+        const scrubBar = document.getElementById('scrub-bar');
+        const scrubProgress = document.getElementById('scrub-progress');
+        
+        let img = new Image();
+        let audioCtx, analyser, dataArray, source, audio;
+        let isPlaying = false, isFullscreenActive = false;
+        let rotation = 0, autoMove = 0, smoothBass = 0;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.onresize = resize;
+        resize();
+
+        function initAudio() {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        document.getElementById('audioUpload').onchange = function(e) {
+            initAudio();
+            const url = URL.createObjectURL(e.target.files[0]);
+            if(audio) audio.pause();
+            audio = new Audio(url);
+            source = audioCtx.createMediaElementSource(audio);
+            analyser = audioCtx.createAnalyser();
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            analyser.fftSize = 256;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            togglePlay(true);
+        };
+
+        document.getElementById('upload').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => img.src = ev.target.result;
+            reader.readAsDataURL(e.target.files[0]);
+        };
+
+        function togglePlay(state) {
+            if(!audio) return;
+            isPlaying = state !== undefined ? state : !isPlaying;
+            if(isPlaying) {
+                audio.play();
+                playIcon.className = "stop-icon";
+            } else {
+                audio.pause();
+                playIcon.className = "play-icon";
+            }
+        }
+
+        document.getElementById('playBtn').onclick = (e) => { 
+            e.stopPropagation(); 
+            togglePlay(); 
+        };
+
+        document.getElementById('fsBtn').onclick = function() {
+            initAudio();
+            isFullscreenActive = true; 
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
+            ui.classList.add('hidden');
+        };
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                isFullscreenActive = false;
+                ui.classList.remove('hidden');
+            }
+        });
+
+        // Gestione Menu in Fullscreen
+        window.addEventListener('pointerdown', (e) => {
+            if (!isFullscreenActive) return;
+            if (e.clientY > window.innerHeight - 130) ui.classList.remove('hidden');
+            else ui.classList.add('hidden');
+        });
+
+        // SCRUBBING FUNZIONANTE ANCHE DA FERMO
+        function handleScrub(e) {
+            if(!audio) return;
+            const rect = scrubBar.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
+            const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+            
+            // Imposta il tempo (funziona sia in play che in pausa)
+            audio.currentTime = percent * audio.duration;
+            
+            // Aggiorna subito la barra visivamente
+            scrubProgress.style.width = (percent * 100) + '%';
+        }
+
+        scrubBar.addEventListener('mousedown', (e) => { 
+            handleScrub(e); 
+            window.addEventListener('mousemove', handleScrub); 
+        });
+        window.addEventListener('mouseup', () => window.removeEventListener('mousemove', handleScrub));
+        scrubBar.addEventListener('touchstart', (e) => { e.preventDefault(); handleScrub(e); });
+        scrubBar.addEventListener('touchmove', (e) => { e.preventDefault(); handleScrub(e); });
+
+        function draw() {
+            if (audio) {
+                // La barra si aggiorna sempre se l'audio esiste
+                const progress = (audio.currentTime / audio.duration) * 100;
+                scrubProgress.style.width = progress + '%';
+
+                if (isPlaying) {
+                    analyser.getByteFrequencyData(dataArray);
+                    let bass = (dataArray[0] + dataArray[1] + dataArray[2]) / 3;
+                    smoothBass += (bass - smoothBass) * 0.02;
+                } else {
+                    smoothBass *= 0.95; // Spegnimento dolce dei bassi se fermo
+                }
+            }
+
+            // Metamorfosi ultra-lenta
+            autoMove += 0.00015 + (smoothBass / 60000);
+            rotation += 0.00008 + (smoothBass / 150000);
+
+            ctx.fillStyle = 'rgba(1, 1, 1, 0.08)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (img.src) {
+                const slices = parseInt(document.getElementById('slices').value);
+                const zoom = parseFloat(document.getElementById('zoomSlider').value) + (smoothBass / 1500);
+                const angleStep = (Math.PI * 2) / slices;
+
+                for (let i = 0; i < slices; i++) {
+                    ctx.save();
+                    ctx.translate(canvas.width / 2, canvas.height / 2);
+                    ctx.rotate(i * angleStep + rotation);
+                    ctx.beginPath();
+                    ctx.moveTo(0, 0);
+                    ctx.arc(0, 0, Math.max(canvas.width, canvas.height), -angleStep / 2.01, angleStep / 2.01);
+                    ctx.clip();
+                    if (i % 2 === 1) ctx.scale(-1, 1);
+                    const ox = Math.cos(autoMove) * 220, oy = Math.sin(autoMove * 0.4) * 220;
+                    ctx.drawImage(img, ox - (img.width * zoom) / 2, oy - (img.height * zoom) / 2, img.width * zoom, img.height * zoom);
+                    ctx.restore();
+                }
+            }
+            requestAnimationFrame(draw);
+        }
+        draw();
+    </script>
+</body>
+</html>
