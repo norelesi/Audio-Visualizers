@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Deep Space Tactical Decoder V7</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; color: #0ff; }
+        canvas { width: 100vw; height: 100vh; display: block; position: absolute; z-index: 1; }
+        
+        #ui-layer { position: absolute; width: 100%; height: 100%; z-index: 10; pointer-events: none; display: none; flex-direction: column; justify-content: space-between; padding: 20px; box-sizing: border-box; }
+        #boot { position: absolute; z-index: 100; width: 100%; height: 100%; background: #000; display: flex; align-items: center; justify-content: center; text-align: center; }
+        .boot-box { border: 1px solid #0ff; padding: 40px; background: rgba(0,20,20,0.95); box-shadow: 0 0 30px #044; width: 85%; }
+        .btn-ui { margin: 15px 0; padding: 12px; border: 1px solid #0ff; cursor: pointer; display: block; background: rgba(0,255,255,0.05); color: #0ff; font-weight: bold; letter-spacing: 2px; }
+        #start-btn { display: none; background: #0ff; color: #000; box-shadow: 0 0 20px #0ff; }
+
+        #media-controls { 
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 100px; 
+            background: linear-gradient(transparent, rgba(0,15,15,0.95)); 
+            z-index: 50; display: none; align-items: center; justify-content: space-around; 
+            padding: 0 20px; box-sizing: border-box; pointer-events: auto;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .media-btn { background: none; border: 1px solid #0ff; color: #0ff; padding: 8px 12px; cursor: pointer; font-family: monospace; font-size: 11px; text-transform: uppercase; min-width: 60px; }
+        
+        /* Area Scrubbing ampliata per facilitare il tocco */
+        #scrub-container { flex-grow: 1; margin: 0 15px; position: relative; height: 40px; cursor: pointer; display: flex; align-items: center; touch-action: none; }
+        #scrub-bg { width: 100%; height: 4px; background: rgba(0,255,255,0.2); border-radius: 2px; }
+        #scrub-prog { position: absolute; top: 18px; left: 0; height: 4px; background: #0ff; width: 0%; box-shadow: 0 0 10px #0ff; border-radius: 2px; pointer-events: none; }
+        #scrub-handle { position: absolute; top: 12px; left: 0%; width: 16px; height: 16px; background: #0ff; border-radius: 50%; transform: translateX(-50%); box-shadow: 0 0 15px #0ff; pointer-events: none; }
+
+        .hud-corner { font-size: 10px; line-height: 1.3; text-shadow: 0 0 5px #0ff; }
+        .glitch-alert { animation: blink 0.15s infinite; color: #f0f; font-weight: bold; }
+        @keyframes blink { 0% { opacity: 0; } 50% { opacity: 1; } }
+        .bar-wrap { width: 100px; height: 4px; border: 1px solid #0ff; margin-top: 4px; }
+        .bar-level { height: 100%; background: #0ff; width: 0%; transition: width 0.1s; }
+        
+        .hidden { opacity: 0 !important; transform: translateY(30px); pointer-events: none !important; }
+        input { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="boot">
+    <div class="boot-box">
+        <h1 style="letter-spacing: 12px; font-size: 24px;">CORE_DECODER</h1>
+        <label class="btn-ui" for="img-in">> LOAD VISUAL MAP (IMG)</label>
+        <label class="btn-ui" for="aud-in">> LOAD SIGNAL SOURCE (AUDIO)</label>
+        <input type="file" id="img-in" accept="image/*">
+        <input type="file" id="aud-in" accept="audio/*">
+        <div id="start-btn" class="btn-ui" onclick="startSystem()">INITIATE DEEP SPACE LINK</div>
+        <div id="status" style="font-size: 10px; margin-top: 15px; opacity: 0.6;">AWAITING DATA PACKETS...</div>
+    </div>
+</div>
+
+<div id="ui-layer">
+    <div style="display: flex; justify-content: space-between;">
+        <div class="hud-corner">[SYS: ACTIVE]<br>[FRQ: <span id="ui-hz">0</span> Hz]<br><div class="bar-wrap"><div id="bar-hz" class="bar-level"></div></div></div>
+        <div class="hud-corner" style="text-align: right;">[TEMP: <span id="ui-temp">36.0</span>°C]<br>[BASS: <span id="ui-bass">0</span>%]<br><span id="ui-glitch" class="glitch-alert" style="visibility: hidden;">! INTERFERENCE !</span></div>
+    </div>
+    <div style="text-align: center; font-size: 11px; letter-spacing: 4px;"><div id="ui-msg">SYNCHRONIZING_VOYAGE...</div></div>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 80px;">
+        <div class="hud-corner">LOC: SECTOR_7G<br>DECODING: <span id="ui-stream">IDLE</span></div>
+        <div class="hud-corner" style="text-align: right; opacity: 0.4;">© 2026 PROJECT_GENESIS</div>
+    </div>
+</div>
+
+<div id="media-controls">
+    <button class="media-btn" id="play-pause" onclick="togglePlay()">STOP</button>
+    <div id="scrub-container">
+        <div id="scrub-bg"></div>
+        <div id="scrub-prog"></div>
+        <div id="scrub-handle"></div>
+    </div>
+    <button class="media-btn" onclick="toggleFS()">FULL</button>
+    <button class="media-btn" onclick="resetSystem()" style="color: #f0f; border-color: #f0f;">[X] RESET</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<script id="fs" type="x-shader/x-fragment">
+    precision highp float;
+    uniform float u_time;
+    uniform vec2 u_res;
+    uniform sampler2D u_tex;
+    uniform float u_bass;
+    uniform float u_noise;
+    float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
+    void main() {
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_res.xy) / min(u_res.y, u_res.x);
+        float r = length(uv);
+        float a = atan(uv.y, uv.x);
+        float z = 1.0 / (r + 0.008 + u_bass * 0.12);
+        vec2 tUV = vec2(a / 3.14159 + u_time * 0.03, z + u_time * 0.15);
+        vec3 col = texture2D(u_tex, tUV).rgb;
+        float scanline = sin(uv.y * 300.0 + u_time * 12.0) * 0.03;
+        col -= scanline;
+        if (u_noise > 0.45 && rand(vec2(u_time)) > 0.75) {
+            float shift = 0.04 * u_noise;
+            col.r = texture2D(u_tex, tUV + vec2(shift, 0.0)).r;
+            col.b = texture2D(u_tex, tUV - vec2(shift, 0.0)).b;
+            col += rand(uv + u_time) * 0.12;
+        }
+        col *= smoothstep(0.0, 0.6, r);
+        col += vec3(0.0, 0.3, 0.6) * (0.09 / (r + 0.005));
+        gl_FragColor = vec4(col, 1.0);
+    }
+</script>
+
+<script>
+    const canvas = document.getElementById('c');
+    const gl = canvas.getContext('webgl');
+    const controls = document.getElementById('media-controls');
+    const scrubContainer = document.getElementById('scrub-container');
+    const uiMsgs = ["SCANNING_VOID...", "RELAYING_DATA...", "NEURAL_SYNC...", "DECODING_PULSE...", "VOID_REACHED"];
+    let program, texture, audioCtx, analyser, audio, srcNode;
+    let imgReady = false, audReady = false, isRunning = false, isDragging = false;
+    let hideTimeout, msgIdx = 0;
+
+    function initGL() {
+        const vs = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vs, `attribute vec2 p; void main(){gl_Position=vec4(p,0,1);}`);
+        gl.compileShader(vs);
+        const fs = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fs, document.getElementById('fs').text);
+        gl.compileShader(fs);
+        program = gl.createProgram();
+        gl.attachShader(program, vs); gl.attachShader(program, fs);
+        gl.linkProgram(program); gl.useProgram(program);
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+        const pLoc = gl.getAttribLocation(program, 'p');
+        gl.enableVertexAttribArray(pLoc);
+        gl.vertexAttribPointer(pLoc, 2, gl.FLOAT, false, 0, 0);
+    }
+
+    // Scrubbing Logic (Touch & Mouse Drag)
+    function handleScrub(e) {
+        const rect = document.getElementById('scrub-bg').getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let pos = (clientX - rect.left) / rect.width;
+        pos = Math.max(0, Math.min(1, pos));
+        if (audio && audio.duration) {
+            audio.currentTime = pos * audio.duration;
+        }
+    }
+
+    scrubContainer.addEventListener('mousedown', (e) => { isDragging = true; handleScrub(e); });
+    window.addEventListener('mousemove', (e) => { if (isDragging) handleScrub(e); });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    scrubContainer.addEventListener('touchstart', (e) => { isDragging = true; handleScrub(e); }, {passive: false});
+    scrubContainer.addEventListener('touchmove', (e) => { if (isDragging) { e.preventDefault(); handleScrub(e); } }, {passive: false});
+    scrubContainer.addEventListener('touchend', () => { isDragging = false; });
+
+    // Files
+    document.getElementById('img-in').onchange = e => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                const tmp = document.createElement('canvas'); tmp.width = tmp.height = 512;
+                tmp.getContext('2d').drawImage(img, 0,0,512,512);
+                texture = gl.createTexture();
+                gl.bindTexture(gl.TEXTURE_2D, texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, tmp);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                imgReady = true; check();
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    };
+
+    document.getElementById('aud-in').onchange = e => {
+        if(audio) audio.pause();
+        audio = new Audio(URL.createObjectURL(e.target.files[0]));
+        audReady = true; check();
+    };
+
+    function check() { if(imgReady && audReady) document.getElementById('start-btn').style.display = 'block'; }
+
+    function startSystem() {
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        srcNode = audioCtx.createMediaElementSource(audio);
+        srcNode.connect(analyser); analyser.connect(audioCtx.destination);
+        audio.play();
+        document.getElementById('boot').style.display = 'none';
+        document.getElementById('ui-layer').style.display = 'flex';
+        controls.style.display = 'flex';
+        isRunning = true; render();
+    }
+
+    function resetSystem() {
+        isRunning = false;
+        if(audio) { audio.pause(); audio.currentTime = 0; }
+        if(srcNode) srcNode.disconnect();
+        imgReady = false; audReady = false;
+        document.getElementById('img-in').value = "";
+        document.getElementById('aud-in').value = "";
+        document.getElementById('start-btn').style.display = 'none';
+        document.getElementById('boot').style.display = 'flex';
+        document.getElementById('ui-layer').style.display = 'none';
+        controls.style.display = 'none';
+    }
+
+    function togglePlay() {
+        if (audio.paused) { audio.play(); document.getElementById('play-pause').innerText = "STOP"; }
+        else { audio.pause(); document.getElementById('play-pause').innerText = "PLAY"; }
+    }
+    function toggleFS() {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+    }
+
+    function showControls() {
+        controls.classList.remove('hidden');
+        clearTimeout(hideTimeout);
+        if (document.fullscreenElement) hideTimeout = setTimeout(() => { controls.classList.add('hidden'); }, 3000);
+    }
+    window.addEventListener('mousemove', (e) => { if (e.clientY > window.innerHeight - 100) showControls(); });
+    window.addEventListener('touchstart', (e) => { if (e.touches[0].clientY > window.innerHeight - 100) showControls(); });
+    window.addEventListener('click', (e) => {
+        if (document.fullscreenElement && e.clientY < window.innerHeight - 100) controls.classList.add('hidden');
+        else showControls();
+    });
+
+    function render() {
+        if(!isRunning) return;
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        let b = data[2]/255.0, m = data[40]/255.0, h = data[100]/255.0;
+        
+        let p = (audio.currentTime / audio.duration * 100);
+        document.getElementById('scrub-prog').style.width = p + "%";
+        document.getElementById('scrub-handle').style.left = p + "%";
+        
+        document.getElementById('ui-hz').innerText = Math.floor(m * 15000);
+        document.getElementById('bar-hz').style.width = (m * 100) + "%";
+        document.getElementById('ui-bass').innerText = Math.floor(b * 100);
+        document.getElementById('ui-temp').innerText = (35 + b * 12).toFixed(1);
+        document.getElementById('ui-glitch').style.visibility = h > 0.5 ? "visible" : "hidden";
+        document.getElementById('ui-stream').innerText = h > 0.1 ? "STREAMING" : "IDLE";
+        if(Math.random() > 0.98) { document.getElementById('ui-msg').innerText = uiMsgs[msgIdx]; msgIdx = (msgIdx + 1) % uiMsgs.length; }
+
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_time'), performance.now()/1000);
+        gl.uniform2f(gl.getUniformLocation(program, 'u_res'), canvas.width, canvas.height);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_bass'), b);
+        gl.uniform1f(gl.getUniformLocation(program, 'u_noise'), h);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        requestAnimationFrame(render);
+    }
+    initGL();
+</script>
+</body>
+</html>
