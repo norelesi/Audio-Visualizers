@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Cosmic Odyssey v13.8 - Fullscreen Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&display=swap');
+        body { margin: 0; background-color: #010103; color: #ff3333; font-family: 'Syncopate', sans-serif; overflow: hidden; touch-action: none; }
+        #canvas { position: absolute; top: 0; left: 0; filter: contrast(130%) brightness(110%) saturate(140%) blur(0.4px); }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; padding: 20px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; }
+        .header, .footer { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 2px; text-shadow: 0 0 10px #ff0000; }
+        .data-stream { font-size: 8px; color: rgba(255, 0, 0, 0.6); margin-top: 5px; }
+        #progress-bar { position: absolute; bottom: 0; left: 0; height: 5px; background: linear-gradient(90deg, #330000, #ff0000, #ffffff); width: 0%; box-shadow: 0 0 20px #ff0000; }
+        #controls { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; }
+        .btn-launch { background: rgba(40, 0, 0, 0.4); color: white; border: 2px solid #ff0000; padding: 20px 40px; cursor: pointer; backdrop-filter: blur(15px); letter-spacing: 5px; transition: 0.3s; box-shadow: 0 0 30px rgba(255,0,0,0.3); font-family: inherit; }
+        .btn-launch:hover { background: #ff0000; color: #000; }
+        
+        /* Contenitore pulsanti footer */
+        .footer-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            pointer-events: auto;
+        }
+
+        /* Icone e Fullscreen Sci-Fi */
+        .icon-btn, #fs-btn {
+            cursor: pointer;
+            color: rgba(255, 51, 51, 0.7);
+            border: 1px solid rgba(255, 51, 51, 0.3);
+            padding: 5px 10px;
+            font-size: 9px;
+            transition: 0.2s;
+            background: transparent;
+        }
+        .icon-btn:hover, #fs-btn:hover {
+            color: #fff;
+            background: rgba(255, 0, 0, 0.2);
+            box-shadow: 0 0 10px #ff0000;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="header">
+            <div>
+                <div>SYSTEM: <span id="status">READY</span></div>
+                <div class="data-stream" id="audio-name">WAITING_FOR_IGNITION</div>
+            </div>
+            <div style="text-align: right;">
+                <div>THRUST: <span id="thrust-val">0</span></div>
+                <div class="data-stream" id="freq-data">0.00 Hz</div>
+            </div>
+        </div>
+        <div class="footer">
+            <div>COORDS: <span id="coords">0,0</span></div>
+            <div class="footer-controls">
+                <div class="icon-btn" onclick="restartAudio()" title="RESTART">⟳</div>
+                <label class="icon-btn" for="audio-input" title="IMPORT">⇪</label>
+                <div id="fs-btn" onclick="toggleFS()">FULL_SCREEN </div>
+            </div>
+        </div>
+        <div id="progress-bar"></div>
+    </div>
+
+    <div id="controls">
+        <label class="btn-launch">
+            <input type="file" id="audio-input" accept="audio/*" style="display:none">
+            IGNITE_UNIVERSE
+        </label>
+    </div>
+
+    <canvas id="canvas"></canvas>
+    <audio id="main-audio" crossOrigin="anonymous"></audio>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const audio = document.getElementById('main-audio');
+        const audioInput = document.getElementById('audio-input');
+        
+        let audioCtx, analyser, dataArray;
+        let particles = [];
+        let rotX = 0, rotY = 0, tRotX = 0, tRotY = 0;
+        let isDragging = false, lastX = 0, lastY = 0;
+        let currentPalette = [];
+
+        const palettes = [
+            ['rgba(0, 255, 255, 0.05)', 'rgba(255, 165, 0, 0.04)', 'rgba(0, 50, 200, 0.06)'], 
+            ['rgba(200, 0, 0, 0.08)', 'rgba(100, 0, 150, 0.04)', 'rgba(180, 50, 0, 0.03)'], 
+            ['rgba(0, 100, 255, 0.05)', 'rgba(255, 255, 255, 0.03)', 'rgba(0, 200, 150, 0.04)'], 
+            ['rgba(255, 100, 0, 0.06)', 'rgba(50, 0, 0, 0.1)', 'rgba(255, 200, 0, 0.03)']    
+        ];
+
+        function toggleFS() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+
+        function restartAudio() {
+            audio.currentTime = 0;
+            audio.play();
+        }
+
+        function getRandomStarColor() {
+            const rand = Math.random();
+            if (rand > 0.95) return '#b0c4de';
+            if (rand > 0.80) return '#ffffff';
+            if (rand > 0.60) return '#fffacd';
+            if (rand > 0.40) return '#ffcc44';
+            return '#ff4422';
+        }
+
+        function startDrag(x, y) { isDragging = true; lastX = x; lastY = y; }
+        function moveDrag(x, y) {
+            if (!isDragging) return;
+            tRotY += (x - lastX) * 0.005;
+            tRotX -= (y - lastY) * 0.005;
+            lastX = x; lastY = y;
+            document.getElementById('coords').innerText = `${tRotX.toFixed(2)},${tRotY.toFixed(2)}`;
+        }
+
+        window.addEventListener('mousedown', e => startDrag(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('touchstart', e => startDrag(e.touches[0].clientX, e.touches[0].clientY));
+        window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX, e.touches[0].clientY));
+        window.addEventListener('touchend', () => isDragging = false);
+
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.onresize = resize;
+        resize();
+
+        function initCosmos() {
+            particles = [];
+            currentPalette = palettes[Math.floor(Math.random() * palettes.length)];
+            
+            for(let i=0; i<850; i++) {
+                particles.push({
+                    type: 'star',
+                    x: (Math.random()-0.5)*4500, 
+                    y: (Math.random()-0.5)*4500, 
+                    z: (Math.random()-0.5)*4500,
+                    size: Math.random() * 2.5,
+                    color: getRandomStarColor(),
+                    blinkOffset: Math.random() * Math.PI
+                });
+            }
+
+            for(let i=0; i<100; i++) {
+                particles.push({
+                    type: 'gas',
+                    x: (Math.random()-0.5)*3500, 
+                    y: (Math.random()-0.5)*3500, 
+                    z: (Math.random()-0.5)*3500,
+                    r: 250 + Math.random()*700,
+                    color: currentPalette[Math.floor(Math.random()*currentPalette.length)]
+                });
+            }
+        }
+
+        audioInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            document.getElementById('audio-name').innerText = file.name.toUpperCase();
+            document.getElementById('controls').style.display = 'none';
+            document.getElementById('status').innerText = 'ACTIVE';
+
+            if(!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                const source = audioCtx.createMediaElementSource(audio);
+                source.connect(analyser);
+                analyser.connect(audioCtx.destination);
+                analyser.fftSize = 512;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+            }
+            audio.src = URL.createObjectURL(file);
+            audio.play();
+            initCosmos();
+            animate();
+        };
+
+        function project(x, y, z) {
+            let cY = Math.cos(rotY), sY = Math.sin(rotY), cX = Math.cos(rotX), sX = Math.sin(rotX);
+            let x1 = x * cY - z * sY, z1 = x * sY + z * cY;
+            let y1 = y * cX - z1 * sX, z2 = y * sX + z1 * cX;
+            const p = 900 / (900 + z2);
+            return { x: x1 * p + canvas.width/2, y: y1 * p + canvas.height/2, z: z2, s: p };
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(!analyser) return;
+            analyser.getByteFrequencyData(dataArray);
+            const energy = dataArray.reduce((a,b) => a+b) / dataArray.length;
+            const bass = dataArray[0];
+
+            rotY += (tRotY - rotY) * 0.1;
+            rotX += (tRotX - rotX) * 0.1;
+
+            ctx.fillStyle = '#010103';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            particles.sort((a,b) => b.z - a.z);
+
+            particles.forEach(p => {
+                const proj = project(p.x, p.y, p.z);
+                if(proj.z < -850) return;
+
+                if(p.type === 'star') {
+                    const blink = Math.sin(Date.now() * 0.002 + p.blinkOffset) * 0.3 + 0.7;
+                    ctx.globalAlpha = Math.max(0, proj.s * blink);
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, p.size * proj.s + (energy/65), 0, Math.PI*2);
+                    ctx.fill();
+                } else {
+                    ctx.globalCompositeOperation = 'screen';
+                    let dSize = (p.r + (energy * 2.8)) * proj.s;
+                    let grad = ctx.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, dSize);
+                    grad.addColorStop(0, p.color);
+                    grad.addColorStop(0.7, p.color.replace('0.', '0.0'));
+                    grad.addColorStop(1, 'transparent');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(proj.x, proj.y, dSize, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalCompositeOperation = 'source-over';
+                }
+            });
+
+            if(bass > 230) {
+                ctx.strokeStyle = `rgba(255, 0, 0, 0.15)`;
+                ctx.lineWidth = 30;
+                ctx.strokeRect(Math.random()*10 - 5, Math.random()*10 - 5, canvas.width, canvas.height);
+            }
+
+            if(!isNaN(audio.duration)) {
+                document.getElementById('progress-bar').style.width = (audio.currentTime/audio.duration*100)+'%';
+            }
+            document.getElementById('thrust-val').innerText = Math.floor(energy * 3);
+            document.getElementById('freq-data').innerText = (bass * 7.4).toFixed(2) + " Hz";
+        }
+
+        initCosmos();
+    </script>
+</body>
+</html>
