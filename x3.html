@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bio-Neural Glitch Engine</title>
+    <style>
+        :root { --neon: #00f2ff; --warn: #ff0055; --bg: #000405; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); overflow: hidden; font-family: 'Courier New', monospace; }
+        canvas { display: block; position: absolute; top: 0; left: 0; }
+        
+        #ui { position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 10; color: var(--neon); }
+        .data-stream { position: absolute; font-size: 9px; padding: 15px; text-shadow: 0 0 5px var(--neon); opacity: 0.8; }
+        #top-right { top: 0; right: 50px; text-align: right; }
+        #bottom-left { bottom: 0; left: 0; }
+
+        #fs-toggle {
+            position: absolute; top: 20px; right: 20px; width: 22px; height: 22px;
+            border: 1px solid var(--neon); pointer-events: auto; cursor: pointer;
+            background: rgba(0, 242, 255, 0.1); transition: 0.3s;
+        }
+        #fs-toggle:hover { box-shadow: 0 0 15px var(--neon); background: var(--neon); }
+
+        /* TASTO PLAY/STOP DINAMICO */
+        #center-trigger {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 80px; height: 80px; cursor: pointer; pointer-events: auto; z-index: 30;
+            background: var(--neon); 
+            opacity: 0; transition: opacity 0.5s ease, clip-path 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            /* Forma iniziale: Play (Triangolo) */
+            clip-path: polygon(20% 10%, 20% 90%, 90% 50%);
+            filter: drop-shadow(0 0 10px var(--neon));
+        }
+
+        /* Classe per trasformare in Stop (Quadrato) */
+        #center-trigger.is-playing {
+            clip-path: polygon(15% 15%, 15% 85%, 85% 85%, 85% 15%);
+        }
+
+        #controls-container {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; align-items: center; gap: 15px;
+            z-index: 20; width: 80%; max-width: 600px; pointer-events: auto;
+        }
+
+        #upload-zone { display: flex; gap: 15px; }
+
+        #scrub-container {
+            width: 100%; display: flex; align-items: center; gap: 10px;
+            background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;
+            border: 1px solid rgba(0, 242, 255, 0.2); backdrop-filter: blur(5px);
+        }
+        #seek-bar {
+            flex-grow: 1; cursor: pointer; accent-color: var(--neon);
+            height: 4px; outline: none;
+        }
+        .time-display { font-size: 10px; color: var(--neon); min-width: 35px; }
+
+        .btn { 
+            background: rgba(0,0,0,0.9); color: var(--neon); border: 1px solid var(--neon); 
+            padding: 10px 20px; cursor: pointer; text-transform: uppercase; 
+            font-size: 11px; letter-spacing: 2px;
+        }
+        .btn:hover { background: var(--neon); color: #000; box-shadow: 0 0 20px var(--neon); }
+        
+        body.is-fullscreen #controls-container { display: none; }
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+
+    <canvas id="mainCanvas"></canvas>
+    <div id="center-trigger" title="Action"></div>
+
+    <div id="ui">
+        <div id="top-right" class="data-stream">
+            EVOLUTION_STAGE: <span id="evo-val">STABLE</span><br>
+            BIO_SYNC: <span id="sync-val">0%</span><br>
+            SYSTEM_INTEGRITY: <span id="warn-val">NOMINAL</span>
+        </div>
+        <div id="bottom-left" class="data-stream">
+            [ NEURAL_RECURSION_ACTIVE ]<br>
+            [ RANDOM_SEED_EVOLUTION: ON ]<br>
+            [ GLITCH_ENGINE: <span id="engine-status">WAITING_FOR_CORE</span> ]
+        </div>
+        <div id="fs-toggle" title="Toggle Mode"></div>
+    </div>
+
+    <div id="controls-container">
+        <div id="scrub-container">
+            <span class="time-display" id="time-current">0:00</span>
+            <input type="range" id="seek-bar" value="0" max="100" step="0.1">
+            <span class="time-display" id="time-total">0:00</span>
+        </div>
+
+        <div id="upload-zone">
+            <label class="btn" for="audio-input">Inject Core</label>
+            <input type="file" id="audio-input" accept="audio/*">
+            <button class="btn" id="btn-random">Randomize DNA</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const audioInput = document.getElementById('audio-input');
+        const btnRandom = document.getElementById('btn-random');
+        const centerTrigger = document.getElementById('center-trigger');
+        const seekBar = document.getElementById('seek-bar');
+        const timeCurrent = document.getElementById('time-current');
+        const timeTotal = document.getElementById('time-total');
+
+        let audioCtx, analyser, source, freqData, audioBuffer;
+        let isReady = false;
+        let isRunning = false;
+        let startTime = 0;
+        let pausedAt = 0;
+        let hideTimeout;
+        
+        let time = 0;
+        let mutationSpeed = 0.003;
+        let dna = { a: Math.random(), b: Math.random(), c: 0.5 };
+        let flashOpacity = 0;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.onresize = resize;
+        resize();
+
+        function formatTime(s) {
+            const mins = Math.floor(s / 60);
+            const secs = Math.floor(s % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        audioInput.onchange = function() {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const reader = new FileReader();
+            reader.onload = e => {
+                audioCtx.decodeAudioData(e.target.result, b => {
+                    audioBuffer = b;
+                    timeTotal.innerText = formatTime(b.duration);
+                    resetAudioSystem();
+                    isReady = true;
+                    document.getElementById('engine-status').innerText = "CORE_LOADED: PRESS_PLAY";
+                    centerTrigger.style.opacity = "0.8";
+                });
+            };
+            reader.readAsArrayBuffer(this.files[0]);
+        };
+
+        function resetAudioSystem() {
+            if(source) source.stop();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 1024;
+            freqData = new Uint8Array(analyser.frequencyBinCount);
+            pausedAt = 0;
+            isRunning = false;
+            centerTrigger.classList.remove('is-playing');
+        }
+
+        function playAt(offset) {
+            if(source) source.stop();
+            source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            
+            startTime = audioCtx.currentTime - offset;
+            source.start(0, offset);
+            source.onended = () => { 
+                if(audioCtx.currentTime - startTime >= audioBuffer.duration) {
+                    isRunning = false;
+                    centerTrigger.classList.remove('is-playing');
+                    centerTrigger.style.opacity = "0.8";
+                }
+            };
+        }
+
+        centerTrigger.onclick = () => {
+            if (!isReady) return;
+            
+            if (!isRunning) {
+                playAt(pausedAt);
+                isRunning = true;
+                centerTrigger.classList.add('is-playing');
+                document.getElementById('engine-status').innerText = "RUNNING";
+                
+                clearTimeout(hideTimeout);
+                hideTimeout = setTimeout(() => {
+                    if(isRunning) centerTrigger.style.opacity = "0";
+                }, 1000);
+
+                render();
+            } else {
+                pausedAt = audioCtx.currentTime - startTime;
+                source.stop();
+                isRunning = false;
+                centerTrigger.classList.remove('is-playing');
+                document.getElementById('engine-status').innerText = "HALTED";
+                
+                clearTimeout(hideTimeout);
+                centerTrigger.style.opacity = "0.8";
+            }
+        };
+
+        seekBar.oninput = () => {
+            if(!audioBuffer) return;
+            const seekTo = (seekBar.value / 100) * audioBuffer.duration;
+            timeCurrent.innerText = formatTime(seekTo);
+        };
+
+        seekBar.onchange = () => {
+            if(!audioBuffer) return;
+            const seekTo = (seekBar.value / 100) * audioBuffer.duration;
+            pausedAt = seekTo;
+            if(isRunning) {
+                playAt(seekTo);
+            }
+        };
+
+        btnRandom.onclick = () => {
+            dna.a = Math.random() * 2;
+            dna.b = Math.random() * 2;
+            dna.c = 0.2 + Math.random() * 0.8;
+            time += 100;
+        };
+
+        function updateUI() {
+            if(!isRunning || !audioBuffer) return;
+            const played = audioCtx.currentTime - startTime;
+            if(played <= audioBuffer.duration) {
+                const perc = (played / audioBuffer.duration) * 100;
+                seekBar.value = perc;
+                timeCurrent.innerText = formatTime(played);
+            }
+        }
+
+        function drawOrganicFractal(x, y, size, angle, depth, energy) {
+            if(depth <= 0) return;
+            const waveA = Math.sin(time + depth) * dna.a;
+            const waveB = Math.cos(time * 0.8 - depth) * dna.b;
+            const x2 = x + Math.cos(angle + waveA) * size * (1 + energy * 0.4);
+            const y2 = y + Math.sin(angle + waveB) * size * (1 + energy * 0.4);
+
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.quadraticCurveTo(x + waveA * 30, y + waveB * 30, x2, y2);
+            const hue = (190 + (depth * 15) + (time * 20)) % 360;
+            ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${0.1 + energy * 0.4})`;
+            ctx.lineWidth = depth * 0.4;
+            ctx.stroke();
+
+            drawOrganicFractal(x2, y2, size * 0.75, angle + dna.c, depth - 1, energy);
+            drawOrganicFractal(x2, y2, size * 0.75, angle - dna.c, depth - 1, energy);
+        }
+
+        function applyGlitch(energy) {
+            if (Math.random() > 0.97) {
+                const y = Math.random() * canvas.height;
+                const h = Math.random() * 50;
+                ctx.drawImage(canvas, 0, y, canvas.width, h, (Math.random()-0.5)*60, y, canvas.width, h);
+            }
+            if (energy > 1.25 && Math.random() > 0.9) {
+                flashOpacity = 0.4;
+                document.getElementById('warn-val').innerText = "OVERLOAD";
+                document.getElementById('warn-val').style.color = "var(--warn)";
+            } else {
+                flashOpacity *= 0.85;
+                if(flashOpacity < 0.01) {
+                    document.getElementById('warn-val').innerText = "NOMINAL";
+                    document.getElementById('warn-val').style.color = "var(--neon)";
+                }
+            }
+            if (flashOpacity > 0) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${flashOpacity})`;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function render() {
+            if(!isRunning) return;
+            requestAnimationFrame(render);
+            
+            updateUI();
+
+            analyser.getByteFrequencyData(freqData);
+            const avg = freqData.reduce((a,b)=>a+b)/freqData.length;
+            const energy = avg / 128.0;
+
+            time += mutationSpeed;
+            ctx.fillStyle = 'rgba(0, 4, 5, 0.18)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            for(let i = 0; i < 4; i++) {
+                ctx.rotate(Math.PI / 2);
+                drawOrganicFractal(0, 0, 150, time, 9, energy);
+            }
+            ctx.restore();
+
+            applyGlitch(energy);
+            document.getElementById('sync-val').innerText = Math.floor(energy * 100) + "%";
+            document.getElementById('evo-val').innerText = (energy > 1) ? "HYPER-EVOLUTION" : "STABLE";
+        }
+
+        document.getElementById('fs-toggle').onclick = () => {
+            if(!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                document.body.classList.add('is-fullscreen');
+            } else {
+                document.exitFullscreen();
+                document.body.classList.remove('is-fullscreen');
+            }
+        };
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) document.body.classList.remove('is-fullscreen');
+        });
+    </script>
+</body>
+</html>

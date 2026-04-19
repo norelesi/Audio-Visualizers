@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>X2_CYBER_FINAL_FIX</title>
+    <style>
+        :root { --neon: #00f2ff; --magenta: #ff00ff; --yellow: #ffff00; --bg: #000; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); overflow: hidden; font-family: 'Courier New', monospace; color: var(--neon); }
+        canvas { display: block; width: 100vw; height: 100vh; object-fit: cover; }
+        
+        /* HUD PERMANENTE */
+        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; padding: 15px; box-sizing: border-box; }
+        .data-box { position: absolute; border-left: 1px solid var(--neon); padding-left: 8px; font-size: 10px; text-transform: uppercase; background: rgba(0,0,0,0.2); }
+        #top-left { top: 60px; left: 15px; }
+        #top-right { top: 60px; right: 15px; text-align: right; border-left: none; border-right: 1px solid var(--neon); padding-right: 8px; }
+        
+        /* CONTROLLI (Responsive) */
+        #controls-wrapper { 
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            z-index: 100; display: flex; flex-direction: column; gap: 15px; 
+            background: rgba(0,5,10,0.9); padding: 20px; border-top: 1px solid var(--neon); 
+            box-sizing: border-box; transition: 0.4s transform;
+        }
+        
+        /* Barra scrubbing più grande per mobile */
+        #scrub-bar { width: 100%; accent-color: var(--magenta); cursor: pointer; height: 20px; }
+        
+        .btn-group { display: flex; gap: 10px; width: 100%; }
+        .btn { flex: 1; background: transparent; color: var(--neon); border: 1px solid var(--neon); padding: 12px; cursor: pointer; font-size: 11px; text-transform: uppercase; text-align: center; }
+        input[type="file"] { display: none; }
+
+        /* TRIGGER CENTRALE */
+        #play-trigger { 
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+            width: 200px; height: 200px; border-radius: 50%;
+            z-index: 50; cursor: pointer; display: flex; align-items: center; justify-content: center;
+            text-align: center; font-size: 10px; border: 1px dashed rgba(0, 242, 255, 0.2);
+        }
+
+        #fs-toggle { position: absolute; top: 15px; right: 15px; width: 35px; height: 35px; border: 1px solid var(--magenta); z-index: 110; cursor: pointer; background: rgba(255,0,255,0.1); }
+        
+        /* FULLSCREEN HIDE */
+        body.is-fullscreen #controls-wrapper { transform: translateY(100%); }
+    </style>
+</head>
+<body>
+
+    <canvas id="mainCanvas"></canvas>
+    <div id="play-trigger">LINK_START<br>[ TOUCH_CENTER ]</div>
+
+    <div id="hud">
+        <div id="top-left" class="data-box">
+            STATUS: <span id="phase">IDLE</span><br>
+            EVO: <span id="evo-val">0%</span>
+        </div>
+        <div id="top-right" class="data-box">
+            NODE: <span id="node">0x44B</span><br>
+            SYNC: <span id="sync-st">OFF</span>
+        </div>
+    </div>
+
+    <div id="fs-toggle"></div>
+
+    <div id="controls-wrapper">
+        <input type="range" id="scrub-bar" value="0" step="0.01" min="0">
+        <div class="btn-group">
+            <label class="btn" for="i">IMAGE</label><input type="file" id="i" accept="image/*">
+            <label class="btn" for="a">AUDIO</label><input type="file" id="a" accept="audio/*">
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const scrubBar = document.getElementById('scrub-bar');
+        const playTrigger = document.getElementById('play-trigger');
+        
+        let audioCtx, analyser, source, freqData, waveData, audioBuffer;
+        let isRunning = false, bgImg = null, startTime = 0, pausedAt = 0;
+        let time = 0;
+        const chars = " .:-=+*#%@";
+
+        function resize() { 
+            canvas.width = window.innerWidth; 
+            canvas.height = window.innerHeight; 
+        }
+        window.onresize = resize; resize();
+
+        document.getElementById('i').onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => { bgImg = img; };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(e.target.files[0]);
+        };
+
+        document.getElementById('a').onchange = (e) => {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                audioCtx.decodeAudioData(ev.target.result, (b) => {
+                    audioBuffer = b;
+                    scrubBar.max = b.duration;
+                    document.getElementById('sync-st').innerText = "READY";
+                });
+            };
+            reader.readAsArrayBuffer(e.target.files[0]);
+        };
+
+        function togglePlay() {
+            if (!audioBuffer || !bgImg) return;
+            if (!isRunning) {
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                
+                // Creazione Sorgente
+                source = audioCtx.createBufferSource();
+                source.buffer = audioBuffer;
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 512;
+                freqData = new Uint8Array(analyser.frequencyBinCount);
+                waveData = new Uint8Array(analyser.frequencyBinCount);
+                
+                source.connect(analyser);
+                analyser.connect(audioCtx.destination);
+                
+                // Fix Scrubbing: usa pausedAt
+                source.start(0, pausedAt);
+                startTime = audioCtx.currentTime - pausedAt;
+                isRunning = true;
+                playTrigger.style.display = "none";
+                loop();
+            } else {
+                stopAudio();
+            }
+        }
+
+        function stopAudio() {
+            if(source) {
+                try { source.stop(); } catch(e){}
+                pausedAt = audioCtx.currentTime - startTime;
+            }
+            isRunning = false;
+            playTrigger.style.display = "flex";
+            playTrigger.innerHTML = "HALTED<br>[ RESUME ]";
+        }
+
+        playTrigger.onclick = togglePlay;
+
+        // Scrubbing funzionante
+        scrubBar.onchange = () => {
+            pausedAt = parseFloat(scrubBar.value);
+            if (isRunning) {
+                source.stop();
+                isRunning = false;
+                togglePlay();
+            }
+        };
+
+        function loop() {
+            if (!isRunning) return;
+            requestAnimationFrame(loop);
+            time += 0.005; // Evoluzione più lenta
+
+            analyser.getByteFrequencyData(freqData);
+            analyser.getByteTimeDomainData(waveData);
+            const energy = freqData[10] / 255; 
+            
+            // Aggiorna barra e UI
+            const curTime = audioCtx.currentTime - startTime;
+            scrubBar.value = curTime;
+            document.getElementById('evo-val').innerText = Math.floor(energy * 100) + "%";
+            document.getElementById('phase').innerText = energy > 0.8 ? "OVERLOAD" : "STABLE";
+
+            ctx.fillStyle = "#000508";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            if(!bgImg) return;
+            const scale = Math.max(canvas.width / bgImg.width, canvas.height / bgImg.height);
+            const w = bgImg.width * scale; const h = bgImg.height * scale;
+            const xOff = (canvas.width - w) / 2;
+            const yOff = (canvas.height - h) / 2;
+
+            // 1. FOTO BASE
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+            ctx.filter = `saturate(${1.2 + energy}) contrast(1.1)`;
+            ctx.drawImage(bgImg, xOff, yOff, w, h);
+            ctx.restore();
+
+            // 2. ASCII SOVRAPPOSTO (Lento e Glitchoso)
+            const fontSize = 12;
+            const cols = Math.floor(canvas.width / (fontSize * 0.6));
+            const rows = Math.floor(canvas.height / fontSize);
+            
+            // Campionamento (virtuale)
+            const tC = document.createElement('canvas');
+            const tCtx = tC.getContext('2d');
+            tC.width = cols; tC.height = rows;
+            tCtx.drawImage(bgImg, 0, 0, cols, rows);
+            const p = tCtx.getImageData(0, 0, cols, rows).data;
+
+            ctx.font = `bold ${fontSize}px monospace`;
+            
+            for (let y = 0; y < rows; y++) {
+                const rowE = freqData[y % freqData.length] / 255;
+                for (let x = 0; x < cols; x++) {
+                    const i = (y * cols + x) * 4;
+                    const avg = (p[i] + p[i+1] + p[i+2]) / 3;
+                    
+                    // Apparizione fluida dei dati
+                    const mask = Math.sin(x * 0.1 + y * 0.05 + time) * 0.5 + 0.5;
+                    if(mask < 0.4 && energy < 0.5) continue;
+
+                    const cIdx = Math.floor((avg / 255) * (chars.length - 1));
+                    ctx.fillStyle = `rgba(${p[i]}, ${p[i+1]}, ${p[i+2]}, ${0.3 + rowE * 0.5})`;
+                    
+                    let gx = 0;
+                    if (energy > 0.88 && Math.random() > 0.98) gx = (Math.random()-0.5)*30;
+
+                    ctx.fillText(chars[cIdx] || " ", x * (fontSize * 0.6) + gx, y * fontSize);
+                }
+            }
+
+            // 3. OSCILLOSCOPIO SCI-FI
+            ctx.beginPath();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = energy > 0.9 ? 'var(--yellow)' : 'var(--neon)';
+            const sliceWidth = canvas.width / waveData.length;
+            let ox = 0;
+            for(let i = 0; i < waveData.length; i++) {
+                const v = waveData[i] / 128.0;
+                const oy = (v * (20 + energy * 40)) + 30;
+                if(i === 0) ctx.moveTo(ox, oy);
+                else ctx.lineTo(ox, oy);
+                ox += sliceWidth;
+            }
+            ctx.stroke();
+        }
+
+        // Tasto Fullscreen migliorato
+        document.getElementById('fs-toggle').onclick = () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                document.body.classList.add('is-fullscreen');
+            } else {
+                document.exitFullscreen();
+                document.body.classList.remove('is-fullscreen');
+            }
+        };
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) document.body.classList.remove('is-fullscreen');
+        });
+    </script>
+</body>
+</html>
