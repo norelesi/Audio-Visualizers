@@ -26,6 +26,7 @@
             --neon-purple: #9933ff;
             --neon-pink: #ff33ff;
             --neon-yellow: #ffcc00;
+            --neon-vortex: #00d4ff;
         }
 
         body {
@@ -117,7 +118,7 @@
         .card-yellow:hover { background: rgba(255, 204, 0, 0.12); box-shadow: 0 0 25px rgba(255, 204, 0, 0.4); }
 
         .card-green { border-color: var(--neon-green); color: var(--neon-green); background: rgba(51, 255, 51, 0.03); }
-        .card-green:hover { background: rgba(51, 255, 51, 0.12); box-shadow: 0 0 25px rgba(51, 255, 51, 0.4); }
+        .grid .card-green:hover { background: rgba(51, 255, 51, 0.12); box-shadow: 0 0 25px rgba(51, 255, 51, 0.4); }
 
         .card-pink { border-color: var(--neon-pink); color: var(--neon-pink); background: rgba(255, 51, 255, 0.03); }
         .card-pink:hover { background: rgba(255, 51, 255, 0.12); box-shadow: 0 0 25px rgba(255, 51, 255, 0.4); }
@@ -125,12 +126,16 @@
         .card-purple { border-color: var(--neon-purple); color: var(--neon-purple); background: rgba(153, 51, 255, 0.03); }
         .card-purple:hover { background: rgba(153, 51, 255, 0.12); box-shadow: 0 0 25px rgba(153, 51, 255, 0.4); }
 
+        .card-cyan { border-color: var(--neon-blue); color: var(--neon-blue); background: rgba(0, 242, 255, 0.03); }
         .card-cyan:hover { background: rgba(0, 242, 255, 0.12); box-shadow: 0 0 25px rgba(0, 242, 255, 0.4); }
 
-        /* Nuova Classe Vis5 */
         .card-orange { border-color: #ff9900; color: #ff9900; background: rgba(255, 153, 0, 0.03); }
         .card-orange:hover { background: rgba(255, 153, 0, 0.12); box-shadow: 0 0 25px rgba(255, 153, 0, 0.4); }
-        .card-orange .card-title { text-shadow: 0 0 10px #ff9900; }
+        
+        /* Nuova Classe VORTEX ENGINE */
+        .card-vortex { border-color: var(--neon-vortex); color: var(--neon-vortex); background: rgba(0, 212, 255, 0.03); border-style: double; border-width: 3px; }
+        .card-vortex:hover { background: rgba(0, 212, 255, 0.15); box-shadow: 0 0 30px rgba(0, 212, 255, 0.6); }
+        .card-vortex .card-title { text-shadow: 0 0 12px var(--neon-vortex); }
 
         footer { margin-top: 50px; font-size: 0.65rem; opacity: 0.5; letter-spacing: 2px; line-height: 1.5; }
         @keyframes glitch {
@@ -154,6 +159,11 @@
         </header>
 
         <div class="grid">
+            <a href="Vis6c.html" class="nav-card card-vortex">
+                <span class="card-title">VORTEX ENGINE</span>
+                <span class="card-desc">Manipolazione genomica dei pixel tramite warping matematico e bio-feedback audio.</span>
+            </a>
+
             <a href="Vis5.html" class="nav-card card-orange">
                 <span class="card-title">CYBER KALEIDO</span>
                 <span class="card-desc">Simmetrie speculari dinamiche con campionamento di texture e audio-reactive zoom.</span>
