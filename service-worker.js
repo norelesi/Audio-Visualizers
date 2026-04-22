@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cyber-vis-v1.4';
+const CACHE_NAME = 'cyber-vis-v1.5';
 const ASSETS = [
   './index.html',
   './Vis7.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   './Vis4.html',
   './Vis4.360.html',
   './Vis5.html',
+  './Vis6c.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png'
