@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VORTEX ENGINE</title>
+    <style>
+        :root { --neon: #00f2ff; --bg: #010101; }
+        body { 
+            margin: 0; background: var(--bg); overflow: hidden; 
+            display: flex; flex-direction: column; align-items: center; 
+            height: 100vh; font-family: 'Courier New', monospace; color: var(--neon); 
+        }
+        
+        body::after { 
+            content: " "; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+            background-size: 100% 4px; pointer-events: none; z-index: 200; 
+        }
+
+        .ui-frame { 
+            position: absolute; top: 10px; z-index: 150; 
+            background: rgba(0, 10, 15, 0.92); padding: 10px; 
+            border: 1px solid var(--neon);
+            clip-path: polygon(0 0, 95% 0, 100% 20%, 100% 100%, 5% 100%, 0 80%);
+            display: flex; flex-direction: column; gap: 4px; width: 320px;
+            transition: 0.4s ease;
+        }
+
+        .bottom-ui {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            height: 80px; z-index: 160; display: flex; align-items: center;
+            justify-content: center; gap: 15px; 
+            background: linear-gradient(transparent, rgba(0,20,30,0.95));
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .ui-hidden { transform: translateY(100%); opacity: 0; pointer-events: none; }
+        .top-hidden { transform: translateY(-150%); opacity: 0; }
+        
+        /* Area trigger per il dito/mouse */
+        .trigger-area { position: absolute; bottom: 0; width: 100%; height: 60px; z-index: 155; }
+
+        label, button { 
+            background: rgba(0, 242, 255, 0.05); color: var(--neon); 
+            border: 1px solid var(--neon); padding: 6px; font-size: 8px;
+            cursor: pointer; text-align: center; text-transform: uppercase;
+        }
+
+        .play-mini { width: 45px; font-size: 14px; font-weight: bold; }
+
+        .scrub-container { width: 220px; display: flex; align-items: center; gap: 10px; }
+        input[type=range] { flex-grow: 1; appearance: none; background: rgba(0, 242, 255, 0.2); height: 4px; outline: none; }
+        input[type=range]::-webkit-slider-thumb { appearance: none; width: 10px; height: 10px; background: var(--neon); border-radius: 50%; }
+
+        canvas#canvas { width: 98vw; height: 90vh; object-fit: contain; z-index: 5; margin-top: 20px; }
+        #waveCanvas { position: absolute; bottom: 95px; left: 50%; transform: translateX(-50%); width: 400px; height: 35px; z-index: 100; pointer-events: none; opacity: 0.6; }
+        
+        #audioSpecs { position: absolute; bottom: 95px; left: 25px; font-size: 8px; line-height: 1.5; opacity: 0.9; z-index: 100; color: var(--neon); }
+        #audioLog { position: absolute; bottom: 95px; right: 25px; width: 200px; height: 80px; font-size: 8px; overflow: hidden; display: flex; flex-direction: column-reverse; opacity: 0.7; z-index: 100; }
+    </style>
+</head>
+<body>
+
+    <div class="ui-frame" id="topUI">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+            <label for="uploadImg">GENOME_IN</label>
+            <input type="file" id="uploadImg" accept="image/*" style="display:none">
+            <label for="uploadAudio">SONIC_IN</label>
+            <input type="file" id="uploadAudio" accept="audio/*" style="display:none">
+        </div>
+        <button id="btnGenerate" style="margin-top:4px">EVOLVE_DNA</button>
+    </div>
+
+    <canvas id="canvas"></canvas>
+    <canvas id="waveCanvas"></canvas>
+    
+    <div id="audioSpecs">
+        PWR: <span id="specVol">0.00</span><br>
+        BSS: <span id="specBass">0.00</span><br>
+        DYN: <span id="specFreq">0.00</span>
+    </div>
+    <div id="audioLog"></div>
+    
+    <div class="trigger-area" id="triggerArea"></div>
+
+    <div class="bottom-ui" id="bottomUI">
+        <button id="btnFS">FULL_SCREEN</button>
+        <button id="btnPlayMini" class="play-mini">▶</button>
+        <div class="scrub-container">
+            <input type="range" id="scrubBar" value="0" min="0" step="0.1">
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const waveCanvas = document.getElementById('waveCanvas');
+        const waveCtx = waveCanvas.getContext('2d');
+        const logContainer = document.getElementById('audioLog');
+        const topUI = document.getElementById('topUI');
+        const bottomUI = document.getElementById('bottomUI');
+        const scrubBar = document.getElementById('scrubBar');
+        const btnPlayMini = document.getElementById('btnPlayMini');
+
+        let img = new Image(), originalPixels = null;
+        let audioCtx, analyser, dataArray, audioTag = new Audio();
+        let isPlaying = false, time = 0, smoothBass = 0, dna = {};
+        let hideTimeout;
+
+        function addLog(t) {
+            const e = document.createElement('div'); e.innerText = `> ${t}`;
+            logContainer.prepend(e); if (logContainer.childNodes.length > 6) logContainer.removeChild(logContainer.lastChild);
+        }
+
+        // MOTORE DI CALCOLO v9.4 (Invariato)
+        function applyMath(val, type) {
+            switch(type) {
+                case 0: return Math.sin(val);
+                case 1: return Math.cos(val);
+                case 2: return Math.tan(val) * 0.1;
+                case 3: return Math.abs(Math.sin(val));
+                case 4: return Math.sqrt(Math.abs(val));
+                case 5: return (val % 1.0);
+                default: return Math.sin(val);
+            }
+        }
+
+        function generateNewDNA() {
+            dna = {
+                coordMode: Math.random() > 0.5 ? 0 : 1,
+                f1: Math.floor(Math.random() * 6),
+                f2: Math.floor(Math.random() * 6),
+                scale: 0.005 + Math.random() * 0.04,
+                warp: 2 + Math.random() * 15,
+                complexity: 3 + Math.random() * 20,
+                speed: 0.003 + Math.random() * 0.006,
+                rSeed: Math.random() * 10,
+                gSeed: Math.random() * 10,
+                bSeed: Math.random() * 10
+            };
+            addLog("DNA_EVOLVED: " + (dna.coordMode === 0 ? "LINEAR" : "RADIAL"));
+        }
+        generateNewDNA();
+
+        // GESTIONE UI FULLSCREEN (Nuova logica Toggle/Auto-hide)
+        function startAutoHide() {
+            stopAutoHide();
+            if (document.fullscreenElement) {
+                hideTimeout = setTimeout(() => {
+                    bottomUI.classList.add('ui-hidden');
+                }, 3000);
+            }
+        }
+
+        function stopAutoHide() {
+            clearTimeout(hideTimeout);
+        }
+
+        function toggleUI() {
+            if (!document.fullscreenElement) return;
+            if (bottomUI.classList.contains('ui-hidden')) {
+                bottomUI.classList.remove('ui-hidden');
+                startAutoHide();
+            } else {
+                bottomUI.classList.add('ui-hidden');
+                stopAutoHide();
+            }
+        }
+
+        // Click sul canvas per toggle
+        canvas.addEventListener('click', toggleUI);
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            toggleUI();
+        });
+
+        // Trigger area per far ricomparire la barra
+        document.getElementById('triggerArea').addEventListener('mouseenter', () => {
+            if (document.fullscreenElement) {
+                bottomUI.classList.remove('ui-hidden');
+                startAutoHide();
+            }
+        });
+
+        document.getElementById('btnFS').onclick = () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+                topUI.classList.add('top-hidden');
+                startAutoHide();
+            } else {
+                document.exitFullscreen();
+                topUI.classList.remove('top-hidden');
+                bottomUI.classList.remove('ui-hidden');
+                stopAutoHide();
+            }
+        };
+
+        // AUDIO & CARICAMENTO (Invariato)
+        document.getElementById('btnGenerate').onclick = generateNewDNA;
+        document.getElementById('uploadImg').onchange = (e) => {
+            const r = new FileReader(); r.onload = (ev) => {
+                img.onload = () => {
+                    const s = Math.min(1, 800/Math.max(img.width, img.height));
+                    canvas.width = img.width*s; canvas.height = img.height*s;
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    originalPixels = ctx.getImageData(0,0,canvas.width,canvas.height).data;
+                }; img.src = ev.target.result;
+            }; r.readAsDataURL(e.target.files[0]);
+        };
+
+        document.getElementById('uploadAudio').onchange = (e) => {
+            audioTag.src = URL.createObjectURL(e.target.files[0]);
+            if (!audioCtx) {
+                audioCtx = new AudioContext(); analyser = audioCtx.createAnalyser();
+                audioCtx.createMediaElementSource(audioTag).connect(analyser);
+                analyser.connect(audioCtx.destination);
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+            }
+            audioTag.onloadedmetadata = () => scrubBar.max = audioTag.duration;
+        };
+
+        btnPlayMini.onclick = () => {
+            if (!audioTag.src || !originalPixels) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            if (isPlaying) { audioTag.pause(); btnPlayMini.innerText = "▶"; }
+            else { audioTag.play(); btnPlayMini.innerText = "■"; requestAnimationFrame(animate); }
+            isPlaying = !isPlaying;
+        };
+
+        scrubBar.oninput = () => {
+            audioTag.currentTime = scrubBar.value;
+            startAutoHide(); // Reset timer se l'utente interagisce
+        };
+        audioTag.ontimeupdate = () => scrubBar.value = audioTag.currentTime;
+
+        function animate() {
+            if (!isPlaying) return;
+            analyser.getByteFrequencyData(dataArray);
+            let b = dataArray[2]/255; 
+            smoothBass += (b-smoothBass)*0.1;
+            time += dna.speed + (smoothBass*0.012);
+
+            document.getElementById('specVol').innerText = (dataArray[15]/255).toFixed(2);
+            document.getElementById('specBass').innerText = (smoothBass).toFixed(2);
+            document.getElementById('specFreq').innerText = (dataArray[20] * 5);
+
+            waveCtx.clearRect(0,0,400,35); waveCtx.beginPath(); waveCtx.strokeStyle="#00f2ff";
+            for(let i=0; i<dataArray.length; i++) waveCtx.lineTo(i*(400/dataArray.length), 35 - (dataArray[i]/255)*35);
+            waveCtx.stroke();
+
+            const id = ctx.createImageData(canvas.width, canvas.height);
+            const data = id.data;
+
+            for (let i=0; i<originalPixels.length; i+=4) {
+                const lum = (originalPixels[i]+originalPixels[i+1]+originalPixels[i+2])/3;
+                if (lum > 90) {
+                    const x = (i/4)%canvas.width, y = Math.floor((i/4)/canvas.width);
+                    let u, v;
+                    if(dna.coordMode === 0) { u = x * dna.scale; v = y * dna.scale; }
+                    else {
+                        let dx = (x - canvas.width/2) * dna.scale;
+                        let dy = (y - canvas.height/2) * dna.scale;
+                        u = Math.sqrt(dx*dx + dy*dy); v = Math.atan2(dy, dx);
+                    }
+                    let wx = applyMath(v + time, dna.f1) * dna.warp * smoothBass;
+                    let wy = applyMath(u - time, dna.f2) * dna.warp * smoothBass;
+                    let noise = applyMath(u + wx, dna.f1) + applyMath(v + wy, dna.f2);
+                    let intensity = Math.abs(noise * (dna.complexity + smoothBass * 10));
+                    data[i] = 127 + 127 * Math.sin(intensity + dna.rSeed);
+                    data[i+1] = 127 + 127 * Math.sin(intensity + dna.gSeed + time);
+                    data[i+2] = 127 + 127 * Math.cos(intensity + dna.bSeed);
+                    data[i+3] = 255;
+                } else { data[i+3]=255; }
+            }
+            ctx.putImageData(id, 0, 0);
+            requestAnimationFrame(animate);
+        }
+    </script>
+</body>
+</html>
