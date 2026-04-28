@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber-Orbital Interface - Pro Color Sync</title>
+    <style>
+        :root { 
+            /* Colori iniziali originali */
+            --neon-primary: #00f2ff; 
+            --neon-secondary: #ff00ff; 
+            --dark: #000000; 
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background: var(--dark);
+            color: #fff;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden;
+        }
+
+        #img-container {
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1;
+        }
+
+        #bg-image { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        #ui-header {
+            position: fixed; top: 0; width: 100%; 
+            min-height: 30px;
+            z-index: 100; background: rgba(0,0,0,0.85);
+            border-bottom: 1px solid var(--neon-primary);
+            display: flex; align-items: center; flex-wrap: wrap;
+            font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px;
+        }
+
+        #ui-header label {
+            padding: 8px 15px;
+            color: var(--neon-primary); cursor: pointer;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.2s; white-space: nowrap;
+        }
+
+        #ui-header label:hover { background: rgba(255, 255, 255, 0.1); }
+
+        #track-id {
+            padding: 8px 15px;
+            color: var(--neon-secondary); /* Colore secondario come originale */
+            flex-grow: 1; min-width: 200px;
+        }
+
+        input[type="file"] { display: none; }
+
+        .hud-overlay {
+            position: fixed; z-index: 60; pointer-events: none;
+            color: var(--neon-primary); font-size: 11px;
+        }
+
+        #l-hud { left: 20px; bottom: 30px; border-left: 3px solid var(--neon-secondary); padding-left: 12px; }
+        #r-hud { right: 20px; bottom: 30px; text-align: right; border-right: 3px solid var(--neon-primary); padding-right: 12px; }
+
+        canvas { position: fixed; top: 0; left: 0; z-index: 20; pointer-events: none; }
+
+        .scan {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, transparent 50%, rgba(255, 255, 255, 0.02) 50%);
+            background-size: 100% 4px; z-index: 30; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="img-container"><img id="bg-image" src=""></div>
+<div class="scan"></div>
+
+<div id="ui-header">
+    <label for="imgIn">LOAD_IMG</label>
+    <input type="file" id="imgIn" accept="image/*">
+    <label for="audIn">LOAD_AUDIO</label>
+    <input type="file" id="audIn" accept="audio/*">
+    
+    <label onclick="randomizePalette()">RAND_THEME</label>
+    <label onclick="restartAudio()">REBOOT</label>
+    <label onclick="toggleFullScreen()">FULLSCREEN</label>
+
+    <div id="track-id">STREAMS: OFFLINE</div>
+</div>
+
+<div class="hud-overlay" id="l-hud">
+    DECODING: ACTIVE <br>
+    POS: <span id="coord">0,0</span> <br>
+    LOAD: <span id="sig-p">0</span>%
+</div>
+
+<div class="hud-overlay" id="r-hud">
+    NODE: CORE_MINI <br>
+    GAIN: <span id="gain-val">0</span> <br>
+    HEX: <span id="key-gen">--</span>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const bgImage = document.getElementById('bg-image');
+    const trackId = document.getElementById('track-id');
+    
+    let audioCtx, analyser, dataArray, bufferLength, source;
+    let currentBuffer = null;
+    let rotation = 0;
+    
+    // Gestione Palette
+    let baseHue = 180; // Ciano (Primario)
+    let secondaryHue = 300; // Magenta (Secondario)
+
+    function randomizePalette() {
+        baseHue = Math.floor(Math.random() * 360);
+        secondaryHue = (baseHue + 120) % 360; // Mantiene un contrasto armonico
+        
+        document.documentElement.style.setProperty('--neon-primary', `hsl(${baseHue}, 100%, 50%)`);
+        document.documentElement.style.setProperty('--neon-secondary', `hsl(${secondaryHue}, 100%, 50%)`);
+    }
+
+    window.addEventListener('resize', () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    });
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    document.getElementById('imgIn').onchange = e => {
+        const file = e.target.files[0];
+        if (file) bgImage.src = URL.createObjectURL(file);
+    };
+
+    document.getElementById('audIn').onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        trackId.innerText = "STRM: " + file.name.toUpperCase();
+        if (audioCtx) audioCtx.close();
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        const reader = new FileReader();
+        reader.onload = ev => {
+            audioCtx.decodeAudioData(ev.target.result, buffer => {
+                currentBuffer = buffer;
+                startPlayback(buffer);
+            });
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    function startPlayback(buffer) {
+        if (source) source.stop();
+        source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        source.start(0);
+        analyser.fftSize = 256;
+        bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+        animate();
+    }
+
+    function restartAudio() { if (currentBuffer && audioCtx) startPlayback(currentBuffer); }
+
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else if (document.exitFullscreen) document.exitFullscreen();
+    }
+
+    function drawOrbitalVisualizer() {
+        if (!dataArray) return;
+        analyser.getByteFrequencyData(dataArray);
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const baseRadius = 80; 
+
+        let sum = 0;
+        for(let j = 0; j < bufferLength; j++) sum += dataArray[j];
+        const average = sum / bufferLength;
+
+        document.getElementById('sig-p').innerText = Math.floor((average / 255) * 100);
+        document.getElementById('gain-val').innerText = Math.max(...dataArray);
+        document.getElementById('key-gen').innerText = Math.max(...dataArray).toString(16).toUpperCase();
+
+        rotation += 0.002; 
+
+        for (let i = 0; i < bufferLength; i++) {
+            const val = dataArray[i];
+            const angle = (i / bufferLength) * Math.PI * 2 + rotation;
+            const barLen = (val / 255) * 50; 
+            
+            // RIPRISTINATO IL GRADIENTE:
+            // Il colore della barra varia in base alla sua posizione nel cerchio (i/bufferLength)
+            // ma ruota attorno alla tonalità "baseHue" scelta
+            const hueShift = (i / bufferLength) * 100;
+            const finalHue = (secondaryHue - hueShift); 
+            const color = `hsla(${finalHue}, 100%, 50%, ${val/255})`;
+
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = color;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(baseRadius, 0);
+            ctx.lineTo(baseRadius + barLen, 0);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Cerchio centrale coordinato con il colore primario
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, baseRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = `hsl(${baseHue}, 100%, 50%)`;
+        ctx.globalAlpha = 0.2;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawOrbitalVisualizer();
+        requestAnimationFrame(animate);
+    }
+
+    window.onmousemove = e => {
+        document.getElementById('coord').innerText = e.clientX + "," + e.clientY;
+    };
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+</body>
+</html>
