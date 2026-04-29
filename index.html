@@ -27,6 +27,7 @@
             --neon-pink: #ff33ff;
             --neon-yellow: #ffcc00;
             --neon-vortex: #00d4ff;
+            --retro-amber: #ffb300; /* Colore per la nuova card CRT */
         }
 
         body {
@@ -136,6 +137,10 @@
         .card-vortex:hover { background: rgba(0, 212, 255, 0.15); box-shadow: 0 0 30px rgba(0, 212, 255, 0.6); }
         .card-vortex .card-title { text-shadow: 0 0 12px var(--neon-vortex); }
 
+        /* NUOVO COLORE CRT */
+        .card-crt { border-color: var(--retro-amber); color: var(--retro-amber); background: rgba(255, 179, 0, 0.03); }
+        .card-crt:hover { background: rgba(255, 179, 0, 0.12); box-shadow: 0 0 25px rgba(255, 179, 0, 0.4); }
+
         footer { margin-top: 50px; font-size: 0.65rem; opacity: 0.5; letter-spacing: 2px; line-height: 1.5; }
         @keyframes glitch {
             0% { text-shadow: 2px 0 0 red, -2px 0 0 blue; }
@@ -158,6 +163,11 @@
         </header>
 
         <div class="grid">
+            <a href="Vis8b.html" class="nav-card card-crt">
+                <span class="card-title">RETRO CRT TV</span>
+                <span class="card-desc">Esperienza analogica definitiva. Oscilloscopio su schermo a tubo catodico con scocca in legno e OSD integrato.</span>
+            </a>
+
             <a href="Vis7a4.html" class="nav-card card-cyan">
                 <span class="card-title">ORBITAL INTERFACE</span>
                 <span class="card-desc">Sincronizzazione cromatica pro-sync e visualizzazione orbitale su asse radiale con feedback HUD.</span>
