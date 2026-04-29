@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Retro CRT TV - Definitive Edition</title>
+    <style>
+        :root {
+            --bg-room: #050505;
+            --tv-wood: #2a1b12;
+            --osd-green: rgba(60, 255, 60, 0.8);
+        }
+
+        body {
+            margin: 0; padding: 0; background: var(--bg-room);
+            display: flex; flex-direction: column; align-items: center;
+            font-family: 'Courier New', monospace; color: #fff;
+            min-height: 100vh; overflow-x: hidden;
+        }
+
+        /* 1. CONTENITORE ESTERNO (Gestisce il Full Screen) */
+        #tv-container {
+            width: 95vw; max-width: 600px;
+            margin-top: 20px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        #tv-container:fullscreen {
+            width: 100vw; height: 100vh;
+            max-width: none; background: #000;
+            justify-content: center; margin: 0;
+        }
+
+        /* 2. LA SCOCCA DI LEGNO (Resta visibile in Full Screen) */
+        .tv-chassis {
+            width: 100%;
+            background: var(--tv-wood);
+            background-image: url('https://www.transparenttextures.com/patterns/dark-wood.png');
+            padding: 20px;
+            border-radius: 25px;
+            box-shadow: 0 30px 80px rgba(0,0,0,1);
+            box-sizing: border-box;
+            display: flex; flex-direction: column;
+            aspect-ratio: 4 / 3.6; /* Forza la forma della TV */
+        }
+
+        #tv-container:fullscreen .tv-chassis {
+            width: 90vw; max-width: 80vh; /* Bilancia larghezza e altezza */
+        }
+
+        /* 3. LO SCHERMO CRT */
+        .bezel { 
+            background: #111; padding: 10px; border-radius: 20px; 
+            box-shadow: inset 0 0 30px #000; flex-grow: 1;
+            display: flex; flex-direction: column;
+        }
+        
+        .screen {
+            position: relative; flex-grow: 1; background: #000;
+            border-radius: 10% / 7%; overflow: hidden;
+            box-shadow: inset 0 0 50px #000; cursor: pointer;
+        }
+
+        #bgBlur { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(30px) saturate(1.5); opacity: 0.6; z-index: 1; }
+        #bgImg { 
+            position: absolute; width: 100%; height: 100%; object-fit: contain; z-index: 2; 
+            -webkit-mask-image: radial-gradient(circle, black 60%, transparent 98%);
+            mask-image: radial-gradient(circle, black 60%, transparent 98%);
+        }
+        canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 5; mix-blend-mode: screen; }
+
+        /* OSD - On Screen Display */
+        .osd { position: absolute; color: var(--osd-green); font-size: 12px; z-index: 10; text-shadow: 0 0 4px var(--osd-green); pointer-events: none; }
+        #status { top: 15px; left: 20px; }
+        #timer { top: 15px; right: 20px; }
+
+        /* 4. CONTROLLI FISICI */
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding: 0 10px; }
+        .btn-circle {
+            width: 42px; height: 42px; border-radius: 50%; border: 2px solid #333;
+            background: linear-gradient(145deg, #2a2a2a, #0a0a0a); cursor: pointer;
+            color: #eee; font-size: 18px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 3px 6px #000; outline: none;
+        }
+        .btn-circle:active { transform: translateY(2px); box-shadow: 0 1px 3px #000; }
+        
+        .led-box { display: flex; align-items: center; gap: 10px; }
+        .led { width: 10px; height: 10px; background: #300; border-radius: 50%; border: 1px solid #000; transition: 0.3s; }
+        .led.on { background: #f00; box-shadow: 0 0 10px #f00; }
+
+        /* AREA CARICAMENTO SOTTO LA TV */
+        .setup-area { margin-top: 30px; display: flex; flex-direction: column; align-items: center; gap: 20px; padding-bottom: 40px; }
+        .loader-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        .loader-row label {
+            background: #1a1a1a; color: #fff; padding: 12px 18px; border: 1px solid #444;
+            border-radius: 5px; font-size: 11px; font-weight: bold; cursor: pointer;
+        }
+        .fs-btn {
+            background: transparent; color: #666; border: 1px solid #333;
+            padding: 10px 25px; border-radius: 20px; font-size: 10px; letter-spacing: 2px; cursor: pointer;
+        }
+
+        input[type="file"] { display: none; }
+
+        /* FIX ORIZZONTALE MOBILE */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #tv-container { width: 60vw; margin-top: 5px; }
+            .setup-area { margin-top: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="tv-container">
+        <div class="tv-chassis">
+            <div class="bezel">
+                <div class="screen" id="screen">
+                    <div id="status" class="osd">VCR STOP</div>
+                    <div id="timer" class="osd">00:00:00:00</div>
+                    
+                    <img id="bgBlur" src="" alt="">
+                    <img id="bgImg" src="https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=800" alt="">
+                    
+                    <canvas id="vis"></canvas>
+                    <div style="position:absolute; inset:0; background:linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.15) 50%); background-size:100% 4px; pointer-events:none; z-index:8;"></div>
+                </div>
+            </div>
+
+            <div class="controls">
+                <button class="btn-circle" id="restartBtn">↺</button>
+                <div class="led-box">
+                    <button class="btn-circle" id="playBtn">▶</button>
+                    <div class="led" id="playLed"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="setup-area">
+        <div class="loader-row">
+            <label for="imgInp">[ CARICA FOTO ]</label>
+            <input type="file" id="imgInp" accept="image/*">
+            
+            <label for="audInp">[ CARICA AUDIO ]</label>
+            <input type="file" id="audInp" accept="audio/*">
+        </div>
+        
+        <button class="fs-btn" id="fullBtn">MODALITÀ FULL SCREEN</button>
+    </div>
+
+<script>
+    const canvas = document.getElementById('vis');
+    const ctx = canvas.getContext('2d');
+    const bgImg = document.getElementById('bgImg');
+    const bgBlur = document.getElementById('bgBlur');
+    const playLed = document.getElementById('playLed');
+    const playBtn = document.getElementById('playBtn');
+    const tvContainer = document.getElementById('tv-container');
+
+    let audioCtx, analyser, dataArray, source, audio;
+    let isPlaying = false;
+
+    bgBlur.src = bgImg.src;
+
+    // Gestione ridimensionamento canvas dinamico
+    function resizeCanvas() {
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    document.getElementById('imgInp').onchange = (e) => {
+        const file = e.target.files[0];
+        if(file) {
+            const url = URL.createObjectURL(file);
+            bgImg.src = url; bgBlur.src = url;
+        }
+    };
+
+    document.getElementById('audInp').onchange = (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        if(audio) audio.pause();
+        audio = new Audio(URL.createObjectURL(file));
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source = audioCtx.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+    };
+
+    const togglePlay = () => {
+        if(!audio) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        if(!isPlaying) {
+            audio.play(); isPlaying = true; playLed.classList.add('on');
+            document.getElementById('status').innerText = "VCR PLAY";
+            render();
+        } else {
+            audio.pause(); isPlaying = false; playLed.classList.remove('on');
+            document.getElementById('status').innerText = "VCR PAUSE";
+        }
+    };
+
+    document.getElementById('fullBtn').onclick = () => {
+        if (!document.fullscreenElement) {
+            if (tvContainer.requestFullscreen) tvContainer.requestFullscreen();
+            else if (tvContainer.webkitRequestFullscreen) tvContainer.webkitRequestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    };
+
+    document.getElementById('restartBtn').onclick = (e) => {
+        e.stopPropagation();
+        if(audio) { audio.currentTime = 0; if(!isPlaying) togglePlay(); }
+    };
+
+    playBtn.onclick = (e) => { e.stopPropagation(); togglePlay(); };
+    document.getElementById('screen').onclick = togglePlay;
+
+    function render() {
+        if(!isPlaying) return;
+        requestAnimationFrame(render);
+        analyser.getByteTimeDomainData(dataArray);
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(100, 255, 200, 0.6)';
+        ctx.beginPath();
+        
+        let sliceWidth = canvas.width / dataArray.length;
+        let x = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            let v = dataArray[i] / 128.0;
+            let y = v * canvas.height / 2;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+            x += sliceWidth;
+        }
+        ctx.stroke();
+
+        const t = audio.currentTime;
+        const m = Math.floor(t/60).toString().padStart(2,'0');
+        const s = Math.floor(t%60).toString().padStart(2,'0');
+        const ms = Math.floor((t%1)*100).toString().padStart(2,'0');
+        document.getElementById('timer').innerText = `00:${m}:${s}:${ms}`;
+    }
+</script>
+</body>
+</html>
